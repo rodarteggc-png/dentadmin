@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DentAdmin – Sistema Dental Integral</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-box">
+      <div class="login-logo">
+        <svg class="logo-icon" viewBox="0 0 32 32" fill="none" style="width:40px;height:40px"><rect width="32" height="32" rx="8" fill="#2563EB"/><path d="M9 11c0-3.314 3.134-5 7-5s7 1.686 7 5c0 2-.8 4-1.5 6S20 21 20 24c0 1-.4 2-1.5 2s-1.5-1-2.5-4c-.5-1.5-1-1.5-1-1.5s-.5 0-1 1.5C13 25 12.5 26 11.5 26S10 25 10 24c0-3 .5-5-1.5-7S9 13 9 11Z" fill="white"/></svg>
+        <span class="logo-text" style="font-size:24px"><strong>Dent</strong>Admin</span>
+      </div>
+      <h2 style="margin-bottom: 20px; font-size: 16px; color: var(--gray-600); text-align: center;">Acceso al Sistema</h2>
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label class="form-label">Usuario</label>
+          <input type="text" class="form-input" id="login-user" required autocomplete="username">
+        </div>
+        <div class="form-group" style="margin-bottom: 24px;">
+          <label class="form-label">Contraseña</label>
+          <input type="password" class="form-input" id="login-pass" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn-primary" style="width: 100%; justify-content: center; padding: 12px; font-size: 14px;">Ingresar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar" style="display:none;">
+    <div class="sidebar__logo">
+      <svg class="logo-icon" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#2563EB"/><path d="M9 11c0-3.314 3.134-5 7-5s7 1.686 7 5c0 2-.8 4-1.5 6S20 21 20 24c0 1-.4 2-1.5 2s-1.5-1-2.5-4c-.5-1.5-1-1.5-1-1.5s-.5 0-1 1.5C13 25 12.5 26 11.5 26S10 25 10 24c0-3 .5-5-1.5-7S9 13 9 11Z" fill="white"/></svg>
+      <span class="logo-text"><strong>Dent</strong>Admin</span>
+    </div>
+    <nav class="sidebar__nav">
+      <a href="#" class="nav-item nav-item--active" data-section="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</a>
+      <div class="nav-divider"></div>
+      <a href="#" class="nav-item" data-section="citas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Citas</a>
+      <a href="#" class="nav-item" data-section="pacientes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.582-7 8-7s8 3 8 7"/></svg>Pacientes</a>
+      <a href="#" class="nav-item" data-section="historia">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg>Historia Clínica</a>
+      <div class="nav-divider"></div>
+      <a href="#" class="nav-item" data-section="presupuestos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>Presupuestos</a>
+      <a href="#" class="nav-item" data-section="pagos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>Pagos</a>
+      <a href="#" class="nav-item" data-section="gastos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Gastos</a>
+      <div class="nav-divider"></div>
+      <a href="#" class="nav-item" data-section="inventario">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>Inventario</a>
+      <a href="#" class="nav-item" data-section="tareas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tareas / CRM</a>
+      <div class="nav-divider"></div>
+      <a href="#" class="nav-item" data-section="reportes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Reportes</a>
+    </nav>
+    <div class="sidebar__footer">
+      <div class="user-mini">
+        <div class="avatar avatar--sm" id="sidebar-avatar">AD</div>
+        <div><p class="user-mini__name" id="sidebar-username">Admin</p><p class="user-mini__role" id="sidebar-rol">Administrador</p></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN LAYOUT -->
+  <div class="layout" id="main-layout" style="display:none;">
+    <header class="topbar">
+      <div class="topbar__left">
+        <button class="sidebar-toggle icon-btn" id="sidebar-toggle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+        <h1 class="topbar__title" id="topbar-title">Dashboard</h1>
+        <span class="topbar__date" id="current-date"></span>
+      </div>
+      <div class="topbar__right">
+        <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="badge" id="notif-badge">0</span></button>
+        <div class="avatar" id="topbar-avatar">AD</div>
+        <span class="topbar__username" id="topbar-username">Admin</span>
+        <button class="btn-secondary" onclick="logout()" style="margin-left:10px">Salir</button>
+      </div>
+    </header>
+
+    <main class="main">
+
+      <!-- ══ DASHBOARD ══ -->
+      <section id="section-dashboard" class="section section--active">
+        <div class="stats" id="dashboard-stats"></div>
+        <div class="content-grid">
+          <div class="content-left">
+            <div>
+              <h2 class="section-title">Acciones rápidas</h2>
+              <div class="action-cards action-cards--4">
+                <button class="action-card action-card--blue" onclick="setAction('AGENDAR_CITA')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><p class="action-card__label">Agendar Cita</p></button>
+                <button class="action-card action-card--green" onclick="setAction('REGISTRAR_PAGO')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="12" cy="12" r="3"/></svg></div><p class="action-card__label">Registrar Pago</p></button>
+                <button class="action-card action-card--purple" onclick="setAction('CREAR_PACIENTE')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="8" r="4"/><path d="M2 20c0-4 3.582-7 8-7s8 3 8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg></div><p class="action-card__label">Crear Paciente</p></button>
+                <button class="action-card action-card--teal" onclick="setAction('REGISTRAR_EVOLUCION_CLINICA')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg></div><p class="action-card__label">Historia Clínica</p></button>
+                <button class="action-card action-card--orange" onclick="setAction('CREAR_PRESUPUESTO')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg></div><p class="action-card__label">Presupuesto</p></button>
+                <button class="action-card action-card--red" onclick="setAction('REGISTRAR_GASTO')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><p class="action-card__label">Registrar Gasto</p></button>
+                <button class="action-card action-card--indigo" onclick="setAction('ACTUALIZAR_INVENTARIO')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><p class="action-card__label">Inventario</p></button>
+                <button class="action-card action-card--pink" onclick="setAction('CREAR_TAREA_CRM')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><p class="action-card__label">Tarea / CRM</p></button>
+              </div>
+            </div>
+            <div>
+              <h2 class="section-title">Instrucción de voz / texto (NLP)</h2>
+              <div class="nlp-card">
+                <div id="nlp-hint" class="nlp-hint"></div>
+                <textarea id="nlp-input" class="nlp-input" rows="3" placeholder="Escribe una instrucción... ej: Agenda a Carlos mañana a las 4pm para limpieza"></textarea>
+                <div class="nlp-actions">
+                  <button class="btn-secondary" onclick="clearNlpInput()">Limpiar</button>
+                  <button class="btn-primary" onclick="processNlpInput()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Procesar</button>
+                </div>
+                <div id="nlp-response" class="nlp-response" hidden>
+                  <div class="nlp-response__header"><span id="response-badge" class="response-badge"></span><span id="response-action" class="response-action"></span></div>
+                  <pre id="response-json" class="response-json"></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+          <aside class="content-right">
+            <h2 class="section-title">Actividad reciente</h2>
+            <ul class="feed" id="activity-feed"></ul>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ══ CITAS ══ -->
+      <section id="section-citas" class="section">
+        <div class="section-header">
+          <h2 class="section-header__title">Gestión de Citas</h2>
+          <div class="section-header__actions">
+            <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="search-citas" placeholder="Buscar cita..." oninput="renderCitas()"></div>
+            <button class="btn-primary" onclick="openModal('cita')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nueva Cita</button>
+          </div>
+        </div>
+        <div class="filter-tabs">
+          <button class="filter-tab filter-tab--active" onclick="filterTable(this,'citas','all')">Todas</button>
+          <button class="filter-tab" onclick="filterTable(this,'citas','pendiente')">Pendientes</button>
+          <button class="filter-tab" onclick="filterTable(this,'citas','completada')">Completadas</button>
+          <button class="filter-tab" onclick="filterTable(this,'citas','cancelada')">Canceladas</button>
+        </div>
+        <div class="table-wrapper"><table class="table"><thead><tr><th>Paciente</th><th>Fecha</th><th>Hora</th><th>Motivo</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="citas-tbody"></tbody></table><div id="citas-empty" class="table-empty" hidden><p>No hay citas registradas</p></div></div>
+      </section>
+
+      <!-- ══ PACIENTES ══ -->
+      <section id="section-pacientes" class="section">
+        <div class="section-header">
+          <h2 class="section-header__title">Gestión de Pacientes</h2>
+          <div class="section-header__actions">
+            <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="search-pacientes" placeholder="Buscar paciente..." oninput="renderPacientes()"></div>
+            <button class="btn-primary" onclick="openModal('paciente')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nuevo Paciente</button>
+          </div>
+        </div>
+        <div class="table-wrapper"><table class="table"><thead><tr><th>Nombre</th><th>Teléfono</th><th>Correo</th><th>Registrado</th><th>Acciones</th></tr></thead><tbody id="pacientes-tbody"></tbody></table><div id="pacientes-empty" class="table-empty" hidden><p>No hay pacientes registrados</p></div></div>
+      </section>
+
+      <!-- ══ HISTORIA CLÍNICA ══ -->
+      <section id="section-historia" class="section">
+        <div class="section-header">
+          <h2 class="section-header__title">Historia Clínica / Evolución</h2>
+          <div class="section-header__actions">
+            <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="search-historia" placeholder="Buscar registro..." oninput="renderHistoria()"></div>
+            <button class="btn-primary" onclick="openModal('historia')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nuevo Registro</button>
+          </div>
+        </div>
+        <div class="table-wrapper"><table class="table"><thead><tr><th>Paciente</th><th>Fecha</th><th>Diente / Zona</th><th>Tratamiento</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="historia-tbody"></tbody></table><div id="historia-empty" class="table-empty" hidden><p>No hay registros clínicos</p></div></div>
+      </section>
+
+      <!-- ══ PRESUPUESTOS ══ -->
+      <section id="section-presupuestos" class="section">
+        <div class="section-header">
+          <h2 class="section-header__title">Presupuestos</h2>
+          <div class="section-header__actions">
+            <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="search-presupuestos" placeholder="Buscar presupuesto..." oninput="renderPresupuestos()"></div>
+            <button class="btn-primary" onclick="openModal('presupuesto')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nuevo Presupuesto</button>
+          </div>
+        </div>
+        <div class="filter-tabs">
+          <button class="filter-tab filter-tab--active" onclick="filterTable(this,'presupuestos','all')">Todos</button>
+          <button class="filter-tab" onclick="filterTable(this,'presupuestos','pendiente')">Pendientes</button>
+          <button class="filter-tab" onclick="filterTable(this,'presupuestos','aprobado')">Aprobados</button>
+          <button class="filter-tab" onclick="filterTable(this,'presupuestos','rechazado')">Rechazados</button>
+        </div>
+        <div class="table-wrapper"><table class="table"><thead><tr><th>Paciente</th><th>Tratamientos</th><th>Monto Total</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody id="presupuestos-tbody"></tbody></table><div id="presupuestos-empty" class="table-empty" hidden><p>No hay presupuestos</p></div></div>
+      </section>
+
+      <!-- ══ PAGOS ══ -->
+      <section id="section-pagos" class="section">
+        <div class="section-header">
+          <h2 class="section-header__title">Gestión de Pagos</h2>
+          <div class="section-header__actions">
+            <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="search-pagos" placeholder="Buscar pago..." oninput="renderPagos()"></div>
+            <button class="btn-primary" onclick="openModal('pago')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Registrar Pago</button>
+          </div>
+        </div>
+        <div class="pagos-summary"><div class="pagos-summary__card"><p class="pagos-summary__label">Cobrado hoy</p><p class="pagos-summary__value" id="pagos-hoy">$ 0</p></div><div class="pagos-summary__card"><p class="pagos-summary__label">Total cobrado</p><p class="pagos-summary__value" id="pagos-total">$ 0</p></div><div class="pagos-summary__card"><p class="pagos-summary__label">Pagos registrados</p><p class="pagos-summary__value" id="pagos-count">0</p></div></div>
+        <div class="table-wrapper"><table class="table"><thead><tr><th>Paciente</th><th>Monto</th><th>Concepto</th><th>Método</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody id="pagos-tbody"></tbody></table><div id="pagos-empty" class="table-empty" hidden><p>No hay pagos registrados</p></div></div>
+      </section>
+
+      <!-- ══ GASTOS ══ -->
+      <section id="section-gastos" class="section">
+        <div class="section-header">
+          <h2 class="section-header__title">Control de Gastos</h2>
+          <div class="section-header__actions">
+            <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="search-gastos" placeholder="Buscar gasto..." oninput="renderGastos()"></div>
+            <button class="btn-primary" onclick="openModal('gasto')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Registrar Gasto</button>
+          </div>
+        </div>
+        <div class="pagos-summary"><div class="pagos-summary__card"><p class="pagos-summary__label">Gastos hoy</p><p class="pagos-summary__value" id="gastos-hoy">$ 0</p></div><div class="pagos-summary__card"><p class="pagos-summary__label">Gastos del mes</p><p class="pagos-summary__value" id="gastos-mes">$ 0</p></div><div class="pagos-summary__card"><p class="pagos-summary__label">Total gastos</p><p class="pagos-summary__value" id="gastos-total">$ 0</p></div></div>
+        <div class="table-wrapper"><table class="table"><thead><tr><th>Concepto</th><th>Monto</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody id="gastos-tbody"></tbody></table><div id="gastos-empty" class="table-empty" hidden><p>No hay gastos registrados</p></div></div>
+      </section>
+
+      <!-- ══ INVENTARIO ══ -->
+      <section id="section-inventario" class="section">
+        <div class="section-header">
+          <h2 class="section-header__title">Inventario de Insumos</h2>
+          <div class="section-header__actions">
+            <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="search-inventario" placeholder="Buscar insumo..." oninput="renderInventario()"></div>
+            <button class="btn-primary" onclick="openModal('inventario')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Movimiento</button>
+          </div>
+        </div>
+        <div class="table-wrapper"><table class="table"><thead><tr><th>Insumo</th><th>Stock Actual</th><th>Último Movimiento</th><th>Tipo</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody id="inventario-tbody"></tbody></table><div id="inventario-empty" class="table-empty" hidden><p>No hay insumos en inventario</p></div></div>
+      </section>
+
+      <!-- ══ TAREAS / CRM ══ -->
+      <section id="section-tareas" class="section">
+        <div class="section-header">
+          <h2 class="section-header__title">Tareas / CRM</h2>
+          <div class="section-header__actions">
+            <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="search-tareas" placeholder="Buscar tarea..." oninput="renderTareas()"></div>
+            <button class="btn-primary" onclick="openModal('tarea')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nueva Tarea</button>
+          </div>
+        </div>
+        <div class="filter-tabs">
+          <button class="filter-tab filter-tab--active" onclick="filterTable(this,'tareas','all')">Todas</button>
+          <button class="filter-tab" onclick="filterTable(this,'tareas','pendiente')">Pendientes</button>
+          <button class="filter-tab" onclick="filterTable(this,'tareas','completada')">Completadas</button>
+        </div>
+        <div class="table-wrapper"><table class="table"><thead><tr><th>Tarea</th><th>Responsable</th><th>Fecha Límite</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="tareas-tbody"></tbody></table><div id="tareas-empty" class="table-empty" hidden><p>No hay tareas registradas</p></div></div>
+      </section>
+
+      <!-- ══ REPORTES ══ -->
+      <section id="section-reportes" class="section">
+        <div class="section-header">
+          <h2 class="section-header__title">Reportes</h2>
+          <div class="section-header__actions">
+            <select class="select-input" id="reporte-periodo" onchange="renderReportes()"><option value="hoy">Hoy</option><option value="semana">Esta semana</option><option value="mes" selected>Este mes</option><option value="todo">Todo</option></select>
+          </div>
+        </div>
+        <div class="report-kpis" id="rpt-kpis"></div>
+        <div class="report-grid">
+          <div class="report-panel"><h3 class="report-panel__title">💰 Ingresos vs Gastos</h3><div class="report-panel__body" id="rpt-balance"></div></div>
+          <div class="report-panel"><h3 class="report-panel__title">📊 Top Motivos / Tratamientos</h3><div class="report-panel__body"><div id="rpt-motivos" class="bar-chart"></div></div></div>
+          <div class="report-panel report-panel--wide"><h3 class="report-panel__title">📋 Últimas 10 Citas</h3><div class="report-panel__body"><table class="table table--compact"><thead><tr><th>Paciente</th><th>Fecha</th><th>Motivo</th><th>Estado</th></tr></thead><tbody id="rpt-citas-tbody"></tbody></table></div></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- MODAL -->
+  <div class="modal-overlay" id="modal-overlay" hidden>
+    <div class="modal" role="dialog">
+      <div class="modal__header"><h3 class="modal__title" id="modal-title"></h3><button class="modal__close" onclick="closeModal()">&times;</button></div>
+      <div class="modal__body" id="modal-body"></div>
+      <div class="modal__footer"><button class="btn-secondary" onclick="closeModal()">Cancelar</button><button class="btn-primary" id="modal-submit" onclick="submitModal()">Guardar</button></div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

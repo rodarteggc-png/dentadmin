@@ -1,0 +1,4 @@
+node_modules/
+dentadmin.sqlite
+.DS_Store
+*.log
