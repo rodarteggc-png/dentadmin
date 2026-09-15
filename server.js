@@ -5,6 +5,8 @@ const db = require('./database');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const fs = require('fs');
+const multer = require('multer');
 
 const app = express();
 const PORT = 3000;
@@ -13,11 +15,28 @@ const SECRET_KEY = 'dentadmin_secret_super_seguro'; // En producción, usar vari
 app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
+// Servir la carpeta uploads estáticamente para ver las imágenes
+const dataPath = process.env.CAREDENT_DATA_PATH || __dirname;
+app.use('/uploads', express.static(path.join(dataPath, 'uploads')));
 
 const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
 
 // Colecciones válidas
-const collections = ['pacientes', 'citas', 'pagos', 'historia', 'presupuestos', 'gastos', 'inventario', 'tareas'];
+const collections = ['pacientes', 'citas', 'pagos', 'historia', 'presupuestos', 'gastos', 'inventario', 'tareas', 'odontogramas', 'archivos', 'recetas'];
+
+// Configuración de Multer (Almacenamiento de fotos)
+const uploadDir = path.join(dataPath, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
+const upload = multer({ storage: storage });
 
 // --- Login ---
 app.post('/api/login', (req, res) => {
@@ -48,6 +67,36 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
+// --- Endpoint de Subida de Archivos ---
+app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
+    
+    const paciente = req.body.paciente;
+    if (!paciente) {
+        // Eliminar el archivo si no hay paciente
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: 'Falta especificar el paciente' });
+    }
+
+    const archivoData = {
+        id: generateId(),
+        nombre_paciente: paciente,
+        original_name: req.file.originalname,
+        filename: req.file.filename,
+        createdAt: new Date().toISOString()
+    };
+
+    const keys = Object.keys(archivoData);
+    const placeholders = keys.map(() => '?').join(',');
+    const values = Object.values(archivoData);
+
+    db.run(`INSERT INTO archivos (${keys.join(',')}) VALUES (${placeholders})`, values, function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true, message: 'Archivo subido correctamente', archivo: archivoData });
+    });
+});
+
+// --- Endpoints Genéricos CRUD ---
 // Aplicar middleware a todas las rutas bajo /api/ (excepto login)
 app.use('/api/:col', authenticateToken);
 

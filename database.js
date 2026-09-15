@@ -95,6 +95,32 @@ const db = new sqlite3.Database(dbPath, (err) => {
                     }
                 });
             });
+
+            db.run(`CREATE TABLE IF NOT EXISTS odontogramas (
+                id TEXT PRIMARY KEY,
+                nombre_paciente TEXT,
+                diente TEXT,
+                cara TEXT,
+                estado TEXT,
+                createdAt TEXT
+            )`);
+            
+            db.run(`CREATE TABLE IF NOT EXISTS archivos (
+                id TEXT PRIMARY KEY,
+                nombre_paciente TEXT,
+                original_name TEXT,
+                filename TEXT,
+                createdAt TEXT
+            )`);
+            
+            db.run(`CREATE TABLE IF NOT EXISTS recetas (
+                id TEXT PRIMARY KEY,
+                nombre_paciente TEXT,
+                edad TEXT,
+                peso TEXT,
+                medicamentos TEXT,
+                fecha TEXT
+            )`);
             console.log('Tablas inicializadas correctamente.');
         });
     }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DentAdmin – Sistema Dental Integral</title>
+  <title>CareDent System</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -14,9 +14,9 @@
   <!-- LOGIN SCREEN -->
   <div id="login-screen" class="login-screen">
     <div class="login-box">
-      <div class="login-logo">
-        <svg class="logo-icon" viewBox="0 0 32 32" fill="none" style="width:40px;height:40px"><rect width="32" height="32" rx="8" fill="#2563EB"/><path d="M9 11c0-3.314 3.134-5 7-5s7 1.686 7 5c0 2-.8 4-1.5 6S20 21 20 24c0 1-.4 2-1.5 2s-1.5-1-2.5-4c-.5-1.5-1-1.5-1-1.5s-.5 0-1 1.5C13 25 12.5 26 11.5 26S10 25 10 24c0-3 .5-5-1.5-7S9 13 9 11Z" fill="white"/></svg>
-        <span class="logo-text" style="font-size:24px"><strong>Dent</strong>Admin</span>
+      <div class="login-logo" style="flex-direction: column; gap: 15px; margin-bottom: 25px;">
+        <img src="logo.jpg" alt="CareDent" style="width: 100px; height: 100px; border-radius: 50%; object-fit: contain; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+        <span class="logo-text" style="font-size:26px; color: var(--gray-900);"><strong style="color: var(--blue);">Care</strong>Dent</span>
       </div>
       <h2 style="margin-bottom: 20px; font-size: 16px; color: var(--gray-600); text-align: center;">Acceso al Sistema</h2>
       <form id="login-form" onsubmit="handleLogin(event)">
@@ -36,19 +36,23 @@
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar" style="display:none;">
     <div class="sidebar__logo">
-      <svg class="logo-icon" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#2563EB"/><path d="M9 11c0-3.314 3.134-5 7-5s7 1.686 7 5c0 2-.8 4-1.5 6S20 21 20 24c0 1-.4 2-1.5 2s-1.5-1-2.5-4c-.5-1.5-1-1.5-1-1.5s-.5 0-1 1.5C13 25 12.5 26 11.5 26S10 25 10 24c0-3 .5-5-1.5-7S9 13 9 11Z" fill="white"/></svg>
-      <span class="logo-text"><strong>Dent</strong>Admin</span>
-    </div>
+        <img src="logo.jpg" alt="CareDent" class="logo-icon">
+        <span class="logo-text sidebar-brand__text">CareDent</span>
+      </div>
     <nav class="sidebar__nav">
       <a href="#" class="nav-item nav-item--active" data-section="dashboard">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</a>
       <div class="nav-divider"></div>
       <a href="#" class="nav-item" data-section="citas">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Citas</a>
-      <a href="#" class="nav-item" data-section="pacientes">
+        <a href="#" class="nav-item" data-section="pacientes">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.582-7 8-7s8 3 8 7"/></svg>Pacientes</a>
       <a href="#" class="nav-item" data-section="historia">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg>Historia Clínica</a>
+      <a href="#" class="nav-item" data-section="gabinete">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>Gabinete / Imágenes</a>
+      <a href="#" class="nav-item" data-section="recetas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15h6"/><path d="M9 12h6"/></svg>Recetas Médicas</a>
       <div class="nav-divider"></div>
       <a href="#" class="nav-item" data-section="presupuestos">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>Presupuestos</a>
@@ -99,33 +103,17 @@
             <div>
               <h2 class="section-title">Acciones rápidas</h2>
               <div class="action-cards action-cards--4">
-                <button class="action-card action-card--blue" onclick="setAction('AGENDAR_CITA')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><p class="action-card__label">Agendar Cita</p></button>
-                <button class="action-card action-card--green" onclick="setAction('REGISTRAR_PAGO')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="12" cy="12" r="3"/></svg></div><p class="action-card__label">Registrar Pago</p></button>
-                <button class="action-card action-card--purple" onclick="setAction('CREAR_PACIENTE')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="8" r="4"/><path d="M2 20c0-4 3.582-7 8-7s8 3 8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg></div><p class="action-card__label">Crear Paciente</p></button>
-                <button class="action-card action-card--teal" onclick="setAction('REGISTRAR_EVOLUCION_CLINICA')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg></div><p class="action-card__label">Historia Clínica</p></button>
-                <button class="action-card action-card--orange" onclick="setAction('CREAR_PRESUPUESTO')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg></div><p class="action-card__label">Presupuesto</p></button>
-                <button class="action-card action-card--red" onclick="setAction('REGISTRAR_GASTO')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><p class="action-card__label">Registrar Gasto</p></button>
-                <button class="action-card action-card--indigo" onclick="setAction('ACTUALIZAR_INVENTARIO')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><p class="action-card__label">Inventario</p></button>
-                <button class="action-card action-card--pink" onclick="setAction('CREAR_TAREA_CRM')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><p class="action-card__label">Tarea / CRM</p></button>
+                <button class="action-card action-card--blue" onclick="openModal('cita')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><p class="action-card__label">Agendar Cita</p></button>
+                <button class="action-card action-card--green" onclick="openModal('pago')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="12" cy="12" r="3"/></svg></div><p class="action-card__label">Registrar Pago</p></button>
+                <button class="action-card action-card--purple" onclick="openModal('paciente')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="8" r="4"/><path d="M2 20c0-4 3.582-7 8-7s8 3 8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg></div><p class="action-card__label">Crear Paciente</p></button>
+                <button class="action-card action-card--teal" onclick="openModal('historia')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg></div><p class="action-card__label">Historia Clínica</p></button>
+                <button class="action-card action-card--orange" onclick="openModal('presupuesto')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg></div><p class="action-card__label">Presupuesto</p></button>
+                <button class="action-card action-card--red" onclick="openModal('gasto')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><p class="action-card__label">Registrar Gasto</p></button>
+                <button class="action-card action-card--indigo" onclick="openModal('inventario')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div><p class="action-card__label">Inventario</p></button>
+                <button class="action-card action-card--pink" onclick="openModal('tarea')"><div class="action-card__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div><p class="action-card__label">Tarea / CRM</p></button>
               </div>
             </div>
-            <div>
-              <h2 class="section-title">Instrucción de voz / texto (NLP)</h2>
-              <div class="nlp-card">
-                <div id="nlp-hint" class="nlp-hint"></div>
-                <textarea id="nlp-input" class="nlp-input" rows="3" placeholder="Escribe una instrucción... ej: Agenda a Carlos mañana a las 4pm para limpieza"></textarea>
-                <div class="nlp-actions">
-                  <button class="btn-secondary" onclick="clearNlpInput()">Limpiar</button>
-                  <button class="btn-primary" onclick="processNlpInput()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Procesar</button>
-                </div>
-                <div id="nlp-response" class="nlp-response" hidden>
-                  <div class="nlp-response__header"><span id="response-badge" class="response-badge"></span><span id="response-action" class="response-action"></span></div>
-                  <pre id="response-json" class="response-json"></pre>
-                </div>
-              </div>
             </div>
-          </div>
           <aside class="content-right">
             <h2 class="section-title">Actividad reciente</h2>
             <ul class="feed" id="activity-feed"></ul>
@@ -164,16 +152,141 @@
       </section>
 
       <!-- ══ HISTORIA CLÍNICA ══ -->
-      <section id="section-historia" class="section">
-        <div class="section-header">
-          <h2 class="section-header__title">Historia Clínica / Evolución</h2>
-          <div class="section-header__actions">
-            <div class="search-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" id="search-historia" placeholder="Buscar registro..." oninput="renderHistoria()"></div>
-            <button class="btn-primary" onclick="openModal('historia')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nuevo Registro</button>
+    <section id="section-historia" class="section">
+      <div class="section-header">
+        <h2 class="section-header__title">Historia Clínica y Odontograma</h2>
+        <div style="display:flex; gap:10px;">
+          <select id="odontograma-paciente-select" class="form-input" style="width: 250px;" onchange="loadOdontogramaPaciente()">
+            <option value="">-- Seleccionar Paciente --</option>
+          </select>
+          <button class="btn-primary" onclick="openModal('historia')">Nueva Evolución</button>
+        </div>
+      </div>
+      
+      <div class="odontograma-layout" id="odontograma-layout" style="display:none;">
+        <div class="odontograma-panel">
+          <div class="odontograma-header">
+            <h3>Odontograma Adulto</h3>
+            <div class="odontograma-leyenda">
+              <span class="leyenda-item"><span class="color-box color-caries"></span>Caries</span>
+              <span class="leyenda-item"><span class="color-box color-resina"></span>Resina/Amalgama</span>
+              <span class="leyenda-item"><span class="color-box color-ausente"></span>Ausente (Extracción)</span>
+              <span class="leyenda-item"><span class="color-box color-corona"></span>Corona</span>
+            </div>
+          </div>
+          <div class="odontograma-grid" id="odontograma-container">
+            <!-- Renderizado por JS -->
           </div>
         </div>
-        <div class="table-wrapper"><table class="table"><thead><tr><th>Paciente</th><th>Fecha</th><th>Diente / Zona</th><th>Tratamiento</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="historia-tbody"></tbody></table><div id="historia-empty" class="table-empty" hidden><p>No hay registros clínicos</p></div></div>
+        
+        <div class="historia-panel">
+          <h3>Evolución Clínica del Paciente</h3>
+          <div class="table-wrapper" style="max-height: 400px; overflow-y: auto;">
+            <table class="table">
+              <thead><tr><th>Fecha</th><th>Diente/Zona</th><th>Tratamiento</th><th>Descripción</th><th>Acciones</th></tr></thead>
+              <tbody id="historia-paciente-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla global de historia (cuando no hay paciente seleccionado) -->
+      <div class="table-wrapper" id="historia-global-container">
+        <div style="margin-bottom:15px">
+           <input type="text" class="form-input" id="search-historia" placeholder="Buscar por paciente, tratamiento..." oninput="renderHistoria()">
+        </div>
+        <table class="table" id="table-historia">
+          <thead><tr><th>Paciente</th><th>Fecha</th><th>Diente/Zona</th><th>Tratamiento</th><th>Descripción</th><th>Acciones</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
       </section>
+      <!-- ══ GABINETE / ARCHIVOS ══ -->
+      <section id="section-gabinete" class="section">
+        <div class="section-header">
+          <h2 class="section-header__title">Gabinete Fotográfico y Radiográfico</h2>
+          <div class="section-header__actions">
+            <select id="gabinete-paciente-select" class="form-input" style="width: 250px;" onchange="loadGabinetePaciente()">
+              <option value="">-- Seleccionar Paciente --</option>
+            </select>
+            <button class="btn-primary" onclick="document.getElementById('file-upload').click()">Subir Imagen</button>
+            <input type="file" id="file-upload" style="display:none;" accept="image/*,.pdf" onchange="uploadFile(event)">
+          </div>
+        </div>
+        <div id="gabinete-gallery" class="gabinete-gallery">
+          <div id="gabinete-empty" class="table-empty"><p>Selecciona un paciente para ver sus archivos</p></div>
+        </div>
+      </section>
+
+      
+      <!-- ══ RECETAS MEDICAS ══ -->
+      <section id="section-recetas" class="section">
+        <div class="section-header">
+          <h2 class="section-header__title">Recetas Médicas</h2>
+          <div class="section-header__actions">
+            <button class="btn-primary" onclick="window.print()">Imprimir Receta (Ctrl+P)</button>
+          </div>
+        </div>
+        
+        <div class="form-row" style="background:#fff; padding:20px; border-radius:var(--radius); border:1px solid var(--gray-200); max-width:800px;">
+            <div class="form-group">
+                <label>Paciente</label>
+                <select id="receta-paciente" class="form-input" onchange="updateRecetaPreview()"></select>
+            </div>
+            <div class="form-group">
+                <label>Edad</label>
+                <input type="text" id="receta-edad" class="form-input" placeholder="Ej. 35 años" oninput="updateRecetaPreview()">
+            </div>
+            <div class="form-group">
+                <label>Peso</label>
+                <input type="text" id="receta-peso" class="form-input" placeholder="Ej. 70 kg" oninput="updateRecetaPreview()">
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>Medicamentos e Indicaciones</label>
+                <textarea id="receta-medicamentos" class="form-input" style="height: 150px;" placeholder="1. Paracetamol 500mg, tomar 1 tableta cada 8 hrs por 3 días.\n2. Amoxicilina..." oninput="updateRecetaPreview()"></textarea>
+            </div>
+            <div style="grid-column: 1 / -1; display:flex; justify-content: flex-end;">
+                <button class="btn-primary" onclick="guardarReceta()">Guardar Receta</button>
+            </div>
+        </div>
+
+        <!-- TABLA HISTORIAL DE RECETAS -->
+        <div class="table-wrapper" style="margin-top:20px;">
+          <table class="table" id="table-recetas">
+            <thead><tr><th>Fecha</th><th>Paciente</th><th>Medicamentos</th><th>Acciones</th></tr></thead>
+            <tbody id="recetas-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- FORMATO DE IMPRESIÓN (OCULTO EN PANTALLA) -->
+      <div id="print-area">
+          <div class="receta-header">
+              <div class="receta-logo">
+                  <img src="logo.jpg" alt="Logo Dra. Rosa Avila">
+              </div>
+              <div class="receta-doctor">
+                  <h2>Dra. Rosa Irasema Avila Acevedo</h2>
+                  <p>Cirujano Dentista</p>
+                  <p>Cédula Profesional: 15655338 | U.A.N.L.</p>
+              </div>
+          </div>
+          <div class="receta-info">
+              <div><strong>Paciente:</strong> <span id="print-paciente"></span></div>
+              <div><strong>Fecha:</strong> <span id="print-fecha"></span></div>
+              <div><strong>Edad:</strong> <span id="print-edad"></span></div>
+              <div><strong>Peso:</strong> <span id="print-peso"></span></div>
+          </div>
+          <div class="receta-body" id="print-medicamentos">
+              <!-- Medicamentos aquí -->
+          </div>
+          <div class="receta-footer">
+              <div class="firma-linea"></div>
+              <p>Dra. Rosa Irasema Avila Acevedo</p>
+              <p>Av. Manuel Ordoñez 725, El Lechugal, Santa Catarina, N.L. C.P. 66376</p>
+              <p>Teléfono: [Pendiente de Agregar]</p>
+          </div>
+      </div>
 
       <!-- ══ PRESUPUESTOS ══ -->
       <section id="section-presupuestos" class="section">
@@ -216,7 +329,7 @@
           </div>
         </div>
         <div class="pagos-summary"><div class="pagos-summary__card"><p class="pagos-summary__label">Gastos hoy</p><p class="pagos-summary__value" id="gastos-hoy">$ 0</p></div><div class="pagos-summary__card"><p class="pagos-summary__label">Gastos del mes</p><p class="pagos-summary__value" id="gastos-mes">$ 0</p></div><div class="pagos-summary__card"><p class="pagos-summary__label">Total gastos</p><p class="pagos-summary__value" id="gastos-total">$ 0</p></div></div>
-        <div class="table-wrapper"><table class="table"><thead><tr><th>Concepto</th><th>Monto</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody id="gastos-tbody"></tbody></table><div id="gastos-empty" class="table-empty" hidden><p>No hay gastos registrados</p></div></div>
+        <div class="table-wrapper"><table class="table"><thead><tr><th>Concepto</th><th>Monto</th><th>Método</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody id="gastos-tbody"></tbody></table><div id="gastos-empty" class="table-empty" hidden><p>No hay gastos registrados</p></div></div>
       </section>
 
       <!-- ══ INVENTARIO ══ -->
@@ -256,17 +369,116 @@
             <select class="select-input" id="reporte-periodo" onchange="renderReportes()"><option value="hoy">Hoy</option><option value="semana">Esta semana</option><option value="mes" selected>Este mes</option><option value="todo">Todo</option></select>
           </div>
         </div>
-        <div class="report-kpis" id="rpt-kpis"></div>
+                <div class="report-kpis" id="rpt-kpis"></div>
         <div class="report-grid">
           <div class="report-panel"><h3 class="report-panel__title">💰 Ingresos vs Gastos</h3><div class="report-panel__body" id="rpt-balance"></div></div>
           <div class="report-panel"><h3 class="report-panel__title">📊 Top Motivos / Tratamientos</h3><div class="report-panel__body"><div id="rpt-motivos" class="bar-chart"></div></div></div>
+          
+          <!-- CORTE DE CAJA -->
+          <div class="report-panel">
+            <h3 class="report-panel__title">🧾 Corte de Caja Diario</h3>
+            <div class="report-panel__body">
+              <div id="rpt-corte-caja" style="margin-bottom:15px; font-size:14px; color:var(--gray-700);"></div>
+              <button class="btn-primary" style="width:100%" onclick="imprimirCorteCaja()">Imprimir Corte</button>
+            </div>
+          </div>
+          
+          <!-- COMISIONES / PRODUCCIÓN -->
+          <div class="report-panel">
+            <h3 class="report-panel__title">👨‍⚕️ Producción por Doctor / Personal</h3>
+            <div class="report-panel__body">
+              <table class="table table--compact">
+                <thead><tr><th>Personal</th><th>Producción</th></tr></thead>
+                <tbody id="rpt-doctores-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
           <div class="report-panel report-panel--wide"><h3 class="report-panel__title">📋 Últimas 10 Citas</h3><div class="report-panel__body"><table class="table table--compact"><thead><tr><th>Paciente</th><th>Fecha</th><th>Motivo</th><th>Estado</th></tr></thead><tbody id="rpt-citas-tbody"></tbody></table></div></div>
         </div>
       </section>
 
-    </main>
-  </div>
+      
+      <!-- FORMATO DE IMPRESIÓN DE PRESUPUESTO (OCULTO EN PANTALLA) -->
+      <div id="print-presupuesto" style="display:none; font-family: Arial, sans-serif;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--blue); padding-bottom: 20px; margin-bottom: 30px;">
+              <div style="display: flex; align-items: center; gap: 15px;">
+                  <img src="logo.jpg" alt="Logo" style="width: 100px; height: 100px; object-fit: contain; border-radius: 50%;">
+                  <div>
+                      <h2 style="color: var(--blue); margin: 0; font-size: 28px;">Presupuesto Dental</h2>
+                      <p style="margin: 5px 0 0 0; color: #4b5563; font-size: 14px;">Clínica Dental Dra. Rosa Avila<br>Av. Manuel Ordoñez 725, El Lechugal</p>
+                  </div>
+              </div>
+              <div style="text-align: right; font-size: 14px;">
+                  <p style="margin: 0;"><strong>Fecha:</strong> <span id="print-p-fecha"></span></p>
+                  <p style="margin: 5px 0 0 0;"><strong>Paciente:</strong> <span id="print-p-paciente" style="font-size: 16px;"></span></p>
+              </div>
+          </div>
 
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+              <thead>
+                  <tr style="background-color: #f3f4f6; color: #374151; text-align: left;">
+                      <th style="padding: 12px; border-bottom: 2px solid #d1d5db;">Concepto / Tratamiento</th>
+                      <th style="padding: 12px; border-bottom: 2px solid #d1d5db; text-align: right; width: 150px;">Costo Estimado</th>
+                  </tr>
+              </thead>
+              <tbody id="print-p-tbody">
+                  <!-- Filas dinámicas -->
+              </tbody>
+          </table>
+
+          <div id="print-p-total-container" style="display: flex; justify-content: flex-end; margin-bottom: 50px;">
+              <div style="background: #eff6ff; padding: 15px 30px; border-radius: 8px; border: 1px solid #bfdbfe; text-align: right; min-width: 250px;">
+                  <h3 style="margin: 0 0 5px 0; color: #1e3a8a; font-size: 16px;">TOTAL ESTIMADO</h3>
+                  <h1 id="print-p-total" style="margin: 0; font-size: 32px; color: var(--blue);"></h1>
+              </div>
+          </div>
+
+          <div style="text-align: center; color: #6b7280; font-size: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+              <p>Este documento es únicamente una estimación de costos basada en la valoración clínica actual.</p>
+              <p>Los precios y tratamientos pueden estar sujetos a cambios dependiendo de la evolución del paciente durante el procedimiento.</p>
+          </div>
+      </div>
+
+<!-- FORMATO DE IMPRESIÓN DEL CORTE (OCULTO EN PANTALLA) -->
+      <div id="print-corte" style="display:none; font-family: Arial, sans-serif;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 20px;">
+              <div>
+                  <h2 style="color: #2563eb; margin: 0; font-size: 28px;">Reporte: Corte de Caja</h2>
+                  <p style="margin: 5px 0 0 0; color: #4b5563;">Clínica Dental Dra. Rosa Avila</p>
+              </div>
+              <div style="text-align: right; font-size: 14px;">
+                  <p style="margin: 0;"><strong>Fecha de impresión:</strong> <span id="corte-fecha-impresion"></span></p>
+                  <p style="margin: 5px 0 0 0;"><strong>Periodo reportado:</strong> <span id="corte-periodo"></span></p>
+              </div>
+          </div>
+
+          <div style="display: flex; gap: 40px;">
+              <!-- COLUMNA IZQUIERDA: Ingresos y Gastos -->
+              <div style="flex: 1;">
+                  <h3 style="background: #f3f4f6; padding: 10px; border-radius: 4px; margin-top:0;">RESUMEN DE INGRESOS</h3>
+                  <div id="corte-ingresos" style="padding: 10px 10px 20px 10px; font-size: 16px; line-height: 1.8;"></div>
+                  
+                  <h3 style="background: #f3f4f6; padding: 10px; border-radius: 4px;">RESUMEN DE GASTOS</h3>
+                  <div id="corte-gastos" style="padding: 10px; font-size: 16px; line-height: 1.8;"></div>
+              </div>
+
+              <!-- COLUMNA DERECHA: Totales y Firmas -->
+              <div style="flex: 1; border-left: 1px solid #e5e7eb; padding-left: 40px;">
+                  <div style="background: #eff6ff; padding: 20px; border-radius: 8px; border: 1px solid #bfdbfe; text-align: center;">
+                      <h2 style="margin: 0 0 10px 0; color: #1e3a8a; font-size:20px;">EFECTIVO NETO EN CAJA</h2>
+                      <h1 id="corte-neto" style="margin: 0; font-size: 36px; color: #2563eb;"></h1>
+                  </div>
+
+                  <div style="margin-top: 100px; text-align: center;">
+                      <div style="border-top: 1px solid #000; width: 80%; margin: 0 auto 10px auto;"></div>
+                      <p style="margin: 0; font-weight: bold;">Firma de Revisión / Auditoría</p>
+                      <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Dra. Rosa Irasema Avila Acevedo</p>
+                  </div>
+              </div>
+          </div>
+      </div>
+  </main>
   <!-- MODAL -->
   <div class="modal-overlay" id="modal-overlay" hidden>
     <div class="modal" role="dialog">

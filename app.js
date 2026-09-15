@@ -1,5 +1,5 @@
 /* ════════════════════════════════════════
-   DentAdmin – app.js  (v2 – 8 acciones NLP)
+   CareDent – app.js  (v2 – 8 acciones NLP)
    Persistencia: localStorage
 ════════════════════════════════════════ */
 'use strict';
@@ -28,7 +28,7 @@ const DB = {
   async init() {
     if (!localStorage.getItem('token')) return; // No init si no hay login
     try {
-      const collections = ['pacientes', 'citas', 'pagos', 'historia', 'presupuestos', 'gastos', 'inventario', 'tareas'];
+      const collections = ['pacientes', 'citas', 'pagos', 'historia', 'presupuestos', 'gastos', 'inventario', 'tareas', 'odontogramas', 'archivos', 'recetas'];
       for (const col of collections) {
         const res = await fetch(`/api/${col}`, { headers: this.getHeaders() }).then(r => this.handleError(r));
         this.cache[col] = await res.json();
@@ -53,35 +53,59 @@ const DB = {
   },
   
   add(n, item) {
-    // 1. Lo mandamos al backend
+    const l = this.get(n);
+    l.push(item);
+    this.cache[n] = l;
+    
     fetch(`/api/${n}`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify(item)
     }).then(r => this.handleError(r)).then(res => res.json()).then(savedItem => {
-        // 2. Actualizamos la caché con el ID real
-        const l = this.get(n);
-        l.push(savedItem);
-        this.cache[n] = l;
-    }).catch(()=>{});
+        const i = l.indexOf(item);
+        if (i !== -1) l[i] = savedItem;
+    }).catch(err => {
+        const i = l.indexOf(item);
+        if (i !== -1) l.splice(i, 1);
+        showToast('Error de red al guardar', 'error');
+    });
     return item;
   },
   
   update(n, id, p) {
+    const l = this.get(n);
+    const i = l.findIndex(x => x.id === id);
+    let original = null;
+    if (i !== -1) {
+        original = { ...l[i] };
+        Object.assign(l[i], p);
+    }
     fetch(`/api/${n}/${id}`, {
         method: 'PUT',
         headers: this.getHeaders(),
         body: JSON.stringify(p)
-    }).then(r => this.handleError(r)).catch(()=>{});
-    const l = this.get(n);
-    const i = l.findIndex(x => x.id === id);
-    if (i !== -1) Object.assign(l[i], p);
+    }).then(r => this.handleError(r)).catch(()=>{
+        if (i !== -1 && original) {
+            Object.assign(l[i], original);
+            // We'd ideally re-render here, but just a toast for now
+        }
+        showToast('Error al actualizar (revertido)', 'error');
+    });
   },
   
   remove(n, id) {
+    const l = this.get(n);
+    const original = l.find(x => x.id === id);
+    this.cache[n] = l.filter(x => x.id !== id);
     fetch(`/api/${n}/${id}`, { method: 'DELETE', headers: this.getHeaders() })
-      .then(r => this.handleError(r)).catch(()=>{});
-    this.cache[n] = this.get(n).filter(x => x.id !== id);
+      .then(r => this.handleError(r)).catch(()=>{
+         if (original) {
+            const nl = this.get(n);
+            nl.push(original);
+            this.cache[n] = nl;
+         }
+         showToast('Error al eliminar (revertido)', 'error');
+      });
   },
   
   find(n, id) {
@@ -166,9 +190,334 @@ function escH(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
 function fmtMoney(n){return'$ '+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:0})}
 function prettyDate(d){if(!d)return'-';return new Date(d+'T00:00:00').toLocaleDateString('es-MX',{year:'numeric',month:'short',day:'numeric'})}
 
-/* ─── 3. NAVEGACIÓN ─── */
-const SECTIONS=['dashboard','citas','pacientes','historia','presupuestos','pagos','gastos','inventario','tareas','reportes'];
-const TITLES={dashboard:'Dashboard',citas:'Citas',pacientes:'Pacientes',historia:'Historia Clínica',presupuestos:'Presupuestos',pagos:'Pagos',gastos:'Gastos',inventario:'Inventario',tareas:'Tareas / CRM',reportes:'Reportes'};
+/* ─── ODONTOGRAMA LOGIC ─── */
+let currentPacienteOdonto = null;
+
+function renderOdontograma(pacienteNombre) {
+  const container = document.getElementById('odontograma-container');
+  container.innerHTML = '';
+  if (!pacienteNombre) return;
+  
+  // Dientes de adulto: Superior (18 a 11, 21 a 28) e Inferior (48 a 41, 31 a 38)
+  const cuadrantes = [
+    [18,17,16,15,14,13,12,11, 21,22,23,24,25,26,27,28],
+    [48,47,46,45,44,43,42,41, 31,32,33,34,35,36,37,38]
+  ];
+  
+  const odontogramasData = DB.get('odontogramas').filter(o => o.nombre_paciente === pacienteNombre);
+
+  cuadrantes.forEach(fila => {
+    const filaDiv = document.createElement('div');
+    filaDiv.className = 'odontograma-fila';
+    fila.forEach(diente => {
+      const dData = odontogramasData.filter(o => o.diente == diente);
+      const isAusente = dData.some(o => o.cara === 'C' && o.estado === 'ausente');
+      const isCorona = dData.some(o => o.cara === 'C' && o.estado === 'corona');
+
+      // Obtener clases para cada cara
+      const getCaraClass = (caraId) => {
+        if (isCorona) return 'cara'; // Corona se pinta todo vía CSS del contenedor
+        const registro = dData.find(o => o.cara === caraId);
+        return registro ? `cara ${registro.estado}` : 'cara';
+      };
+
+      const dienteHtml = `
+        <div class="diente-container ${isAusente ? 'diente-ausente' : ''} ${isCorona ? 'diente-corona' : ''}" data-diente="${diente}">
+          <div class="diente-numero">${diente}</div>
+          <svg class="diente-svg" viewBox="0 0 30 30" onclick="handleDienteClick(event, ${diente})">
+            <!-- Arriba (Vestibular/Palatino) -->
+            <polygon points="0,0 30,0 22,8 8,8" class="${getCaraClass('T')}" data-cara="T" />
+            <!-- Abajo (Lingual/Vestibular) -->
+            <polygon points="8,22 22,22 30,30 0,30" class="${getCaraClass('B')}" data-cara="B" />
+            <!-- Izquierda (Distal/Mesial) -->
+            <polygon points="0,0 8,8 8,22 0,30" class="${getCaraClass('L')}" data-cara="L" />
+            <!-- Derecha (Mesial/Distal) -->
+            <polygon points="30,0 30,30 22,22 22,8" class="${getCaraClass('R')}" data-cara="R" />
+            <!-- Centro (Oclusal) -->
+            <polygon points="8,8 22,8 22,22 8,22" class="${getCaraClass('C')}" data-cara="C" />
+          </svg>
+        </div>
+      `;
+      filaDiv.innerHTML += dienteHtml;
+    });
+    container.appendChild(filaDiv);
+  });
+}
+
+function handleDienteClick(e, diente) {
+  if (!currentPacienteOdonto) return;
+  // Cerrar menú anterior si existe
+  const oldMenu = document.getElementById('odonto-menu');
+  if (oldMenu) oldMenu.remove();
+
+  const cara = e.target.getAttribute('data-cara');
+  if (!cara) return; // Clic fuera del polígono
+
+  const menu = document.createElement('div');
+  menu.id = 'odonto-menu';
+  menu.className = 'odontograma-menu';
+  menu.style.left = `${e.pageX + 5}px`;
+  menu.style.top = `${e.pageY + 5}px`;
+
+  const opciones = [
+    { label: 'Marcar Caries', estado: 'caries', css: 'menu-caries' },
+    { label: 'Marcar Resina', estado: 'resina', css: 'menu-resina' },
+    { label: 'Marcar Corona', estado: 'corona', cara: 'C', css: 'menu-corona' },
+    { label: 'Diente Ausente', estado: 'ausente', cara: 'C', css: 'menu-ausente' },
+    { label: 'Limpiar Cara', estado: 'limpio' }
+  ];
+
+  opciones.forEach(op => {
+    const btn = document.createElement('button');
+    btn.className = op.css || '';
+    btn.textContent = op.label;
+    btn.onclick = () => {
+      saveOdontograma(diente, op.cara || cara, op.estado);
+      menu.remove();
+    };
+    menu.appendChild(btn);
+  });
+
+  document.body.appendChild(menu);
+
+  // Cerrar menú al hacer clic fuera
+  setTimeout(() => {
+    document.addEventListener('click', function closeMenu(evt) {
+      if (!menu.contains(evt.target)) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    });
+  }, 0);
+}
+
+function saveOdontograma(diente, cara, estado) {
+  if (!currentPacienteOdonto) return;
+  // Buscar si ya existe el registro para ese diente y cara del paciente
+  const records = DB.get('odontogramas');
+  const existente = records.find(o => o.nombre_paciente === currentPacienteOdonto && o.diente == diente && o.cara == cara);
+  
+  if (estado === 'limpio') {
+    if (existente) DB.remove('odontogramas', existente.id);
+  } else {
+    if (existente) {
+      DB.update('odontogramas', existente.id, { estado });
+    } else {
+      DB.add('odontogramas', { nombre_paciente: currentPacienteOdonto, diente, cara, estado });
+    }
+  }
+  
+  // Como las funciones de DB devuelven optimísticamente, podemos re-renderizar
+  setTimeout(() => renderOdontograma(currentPacienteOdonto), 100); // Pequeño timeout por si es asíncrono
+}
+
+function loadOdontogramaPaciente() {
+  const select = document.getElementById('odontograma-paciente-select');
+  const paciente = select.value;
+  currentPacienteOdonto = paciente;
+  
+  if (paciente) {
+    document.getElementById('odontograma-layout').style.display = 'grid';
+    document.getElementById('historia-global-container').style.display = 'none';
+    renderOdontograma(paciente);
+    // Filtrar tabla historia a este paciente
+    const trs = document.getElementById('historia-paciente-tbody');
+    trs.innerHTML = '';
+    DB.get('historia').filter(h => h.nombre_paciente === paciente).reverse().forEach(item => {
+      trs.innerHTML += `<tr><td>${item.fecha}</td><td>${escH(item.diente_zona||'-')}</td><td>${escH(item.tratamiento)}</td><td>${escH(item.descripcion)}</td><td><button class="btn-secondary" onclick="DB.remove('historia','${item.id}');loadOdontogramaPaciente()">Eliminar</button></td></tr>`;
+    });
+  } else {
+    document.getElementById('odontograma-layout').style.display = 'none';
+    document.getElementById('historia-global-container').style.display = 'block';
+  }
+}
+
+
+/* ─── GABINETE LOGIC ─── */
+let currentGabinetePaciente = null;
+
+function renderGabinete() {
+  const select = document.getElementById('gabinete-paciente-select');
+  if (select) {
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">-- Seleccionar Paciente --</option>';
+    DB.get('pacientes').forEach(p => {
+      select.innerHTML += `<option value="${escH(p.nombre)}">${escH(p.nombre)}</option>`;
+    });
+    if (currentVal) select.value = currentVal;
+  }
+  loadGabinetePaciente();
+}
+
+function loadGabinetePaciente() {
+  const select = document.getElementById('gabinete-paciente-select');
+  const paciente = select.value;
+  currentGabinetePaciente = paciente;
+  
+  const gallery = document.getElementById('gabinete-gallery');
+  gallery.innerHTML = '';
+  
+  if (!paciente) {
+    gallery.innerHTML = '<div id="gabinete-empty" class="table-empty"><p>Selecciona un paciente para ver sus archivos</p></div>';
+    return;
+  }
+  
+  const archivos = DB.get('archivos').filter(a => a.nombre_paciente === paciente).reverse();
+  if (archivos.length === 0) {
+    gallery.innerHTML = '<div id="gabinete-empty" class="table-empty"><p>El paciente no tiene imágenes subidas</p></div>';
+    return;
+  }
+  
+  archivos.forEach(archivo => {
+    // Si no es imagen (ej. PDF), mostramos un icono genérico o el texto
+    const isImage = archivo.original_name.match(/\.(jpeg|jpg|gif|png|webp)$/i);
+    const src = isImage ? `/uploads/${archivo.filename}` : 'https://upload.wikimedia.org/wikipedia/commons/8/87/PDF_file_icon.svg';
+    
+    gallery.innerHTML += `
+      <div class="gabinete-item">
+        <a href="/uploads/${archivo.filename}" target="_blank">
+          <img src="${src}" class="gabinete-img" title="${archivo.original_name}" alt="Archivo">
+        </a>
+        <div class="gabinete-title">${escH(archivo.original_name)}</div>
+        <div class="gabinete-date">${prettyDate((archivo.createdAt||todayStr()).split('T')[0])}</div>
+        <button class="btn-secondary" onclick="deleteArchivo('${archivo.id}')" style="padding: 4px; font-size: 10px;">Eliminar</button>
+      </div>
+    `;
+  });
+}
+
+async function uploadFile(event) {
+  if (!currentGabinetePaciente) {
+    showToast('Selecciona un paciente primero', 'error');
+    event.target.value = '';
+    return;
+  }
+  
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('paciente', currentGabinetePaciente);
+  
+  try {
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+      body: formData
+    });
+    const data = await res.json();
+    
+    if (res.ok) {
+      showToast('Archivo subido correctamente');
+      await DB.init(); // Recargar DB para obtener el nuevo registro de la colección archivos
+      renderGabinete();
+    } else {
+      showToast(data.error || 'Error al subir archivo', 'error');
+    }
+  } catch(e) {
+    showToast('Error de red al subir', 'error');
+  }
+  
+  event.target.value = ''; // Reset input
+}
+
+function deleteArchivo(id) {
+  if (confirm('¿Eliminar este archivo?')) {
+    DB.remove('archivos', id);
+    setTimeout(() => renderGabinete(), 100);
+  }
+}
+
+
+/* ─── RECETAS LOGIC ─── */
+function renderRecetas() {
+  const select = document.getElementById('receta-paciente');
+  if (select) {
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">-- Seleccionar Paciente --</option>';
+    DB.get('pacientes').forEach(p => {
+      select.innerHTML += `<option value="${escH(p.nombre)}">${escH(p.nombre)}</option>`;
+    });
+    if (currentVal) select.value = currentVal;
+  }
+  
+  const tbody = document.getElementById('recetas-tbody');
+  if (tbody) {
+    tbody.innerHTML = '';
+    const recetas = DB.get('recetas').slice().reverse();
+    recetas.forEach(r => {
+      tbody.innerHTML += `<tr>
+        <td>${prettyDate(r.fecha)}</td>
+        <td><strong>${escH(r.nombre_paciente)}</strong></td>
+        <td>${escH(r.medicamentos).substring(0, 50)}...</td>
+        <td>
+          <button class="btn-secondary" onclick="reimprimirReceta('${r.id}')">Imprimir</button>
+          <button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('recetas','${r.id}')">${delIcon}</button>
+        </td>
+      </tr>`;
+    });
+  }
+}
+
+function updateRecetaPreview() {
+  const paciente = document.getElementById('receta-paciente').value;
+  const edad = document.getElementById('receta-edad').value;
+  const peso = document.getElementById('receta-peso').value;
+  const medicamentos = document.getElementById('receta-medicamentos').value;
+  
+  document.getElementById('print-paciente').textContent = paciente || '_________________';
+  document.getElementById('print-fecha').textContent = new Date().toLocaleDateString('es-MX');
+  document.getElementById('print-edad').textContent = edad || '___';
+  document.getElementById('print-peso').textContent = peso || '___';
+  document.getElementById('print-medicamentos').textContent = medicamentos || '';
+}
+
+function guardarReceta() {
+  const paciente = document.getElementById('receta-paciente').value;
+  if (!paciente) return showToast('Selecciona un paciente', 'error');
+  
+  const payload = {
+    nombre_paciente: paciente,
+    edad: document.getElementById('receta-edad').value,
+    peso: document.getElementById('receta-peso').value,
+    medicamentos: document.getElementById('receta-medicamentos').value,
+    fecha: todayStr()
+  };
+  
+  DB.add('recetas', payload);
+  showToast('Receta guardada exitosamente', 'success');
+  
+  // Limpiar campos
+  document.getElementById('receta-edad').value = '';
+  document.getElementById('receta-peso').value = '';
+  document.getElementById('receta-medicamentos').value = '';
+  
+  // Imprimir
+  window.print();
+  
+  setTimeout(() => renderRecetas(), 100);
+}
+
+function reimprimirReceta(id) {
+  const r = DB.get('recetas').find(x => x.id === id);
+  if (!r) return;
+  
+  document.getElementById('print-paciente').textContent = r.nombre_paciente;
+  document.getElementById('print-fecha').textContent = prettyDate(r.fecha);
+  document.getElementById('print-edad').textContent = r.edad || '___';
+  document.getElementById('print-peso').textContent = r.peso || '___';
+  document.getElementById('print-medicamentos').textContent = r.medicamentos || '';
+  
+  window.print();
+  
+  // Restaurar el preview al estado actual del form
+  updateRecetaPreview();
+}
+
+/* ─── 4. NAVEGACIÓN Y RENDER ─── */
+const SECTIONS=['dashboard','citas','pacientes','historia','gabinete','recetas','presupuestos','pagos','gastos','inventario','tareas','reportes'];
+const TITLES={dashboard:'Dashboard',citas:'Citas',pacientes:'Pacientes',historia:'Historia Clínica',gabinete:'Gabinete',recetas:'Recetas Médicas',presupuestos:'Presupuestos',pagos:'Pagos',gastos:'Gastos',inventario:'Inventario',tareas:'Tareas / CRM',reportes:'Reportes'};
 const tableFilters={citas:'all',presupuestos:'all',tareas:'all'};
 
 function navigateTo(s){
@@ -176,7 +525,7 @@ function navigateTo(s){
   SECTIONS.forEach(x=>{const el=document.getElementById('section-'+x);if(el)el.classList.toggle('section--active',x===s)});
   document.querySelectorAll('.nav-item').forEach(l=>l.classList.toggle('nav-item--active',l.dataset.section===s));
   document.getElementById('topbar-title').textContent=TITLES[s]||s;
-  const renders={dashboard:refreshDashboard,citas:renderCitas,pacientes:renderPacientes,historia:renderHistoria,presupuestos:renderPresupuestos,pagos:renderPagos,gastos:renderGastos,inventario:renderInventario,tareas:renderTareas,reportes:renderReportes};
+  const renders={dashboard:refreshDashboard,citas:renderCitas,pacientes:renderPacientes,historia:renderHistoria,presupuestos:renderPresupuestos,pagos:renderPagos,gastos:renderGastos,inventario:renderInventario,tareas:renderTareas,reportes:renderReportes,gabinete:renderGabinete,recetas:renderRecetas};
   renders[s]?.();
   document.getElementById('sidebar')?.classList.remove('open');
 }
@@ -222,6 +571,7 @@ function addFeedItem({title,sub,type}){
 /* ─── 5. RENDER FUNCTIONS ─── */
 const editIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
 const delIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+const waIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
 const checkIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
 
 function renderCitas(){
@@ -231,7 +581,7 @@ function renderCitas(){
   data.sort((a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora));
   const tb=document.getElementById('citas-tbody'),em=document.getElementById('citas-empty');
   if(!data.length){tb.innerHTML='';em.hidden=false;return}em.hidden=true;
-  tb.innerHTML=data.map(c=>`<tr><td><strong>${escH(c.nombre_paciente)}</strong></td><td>${prettyDate(c.fecha)}</td><td>${escH(c.hora)}</td><td>${escH(c.motivo)}</td><td><span class="tag tag--${c.estado}">${c.estado}</span></td><td><div class="td-actions">${c.estado==='pendiente'?`<button class="btn-icon btn-icon--green" title="Completar" onclick="quickUpdate('citas','${c.id}',{estado:'completada'})">${checkIcon}</button>`:''}<button class="btn-icon" title="Editar" onclick="openModal('cita',DB.find('citas','${c.id}'))">${editIcon}</button><button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('citas','${c.id}')">${delIcon}</button></div></td></tr>`).join('');
+  tb.innerHTML=data.map(c=>`<tr><td><strong>${escH(c.nombre_paciente)}</strong></td><td>${prettyDate(c.fecha)}</td><td>${escH(c.hora)}</td><td>${escH(c.motivo)}</td><td><span class="tag tag--${c.estado}">${c.estado}</span></td><td><div class="td-actions">${c.estado==='pendiente'?`<button class="btn-icon btn-icon--green" title="Completar" onclick="quickUpdate('citas','${c.id}',{estado:'completada'})">${checkIcon}</button>`:''}<button class="btn-icon btn-icon--whatsapp" title="WhatsApp" onclick="enviarWhatsApp('cita','${c.id}')">${waIcon}</button><button class="btn-icon" title="Editar" onclick="openModal('cita',DB.find('citas','${c.id}'))">${editIcon}</button><button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('citas','${c.id}')">${delIcon}</button></div></td></tr>`).join('');
 }
 
 function renderPacientes(){
@@ -240,17 +590,48 @@ function renderPacientes(){
   data.sort((a,b)=>a.nombre.localeCompare(b.nombre));
   const tb=document.getElementById('pacientes-tbody'),em=document.getElementById('pacientes-empty');
   if(!data.length){tb.innerHTML='';em.hidden=false;return}em.hidden=true;
-  tb.innerHTML=data.map(p=>`<tr><td><strong>${escH(p.nombre)}</strong></td><td>${escH(p.telefono||'-')}</td><td>${escH(p.correo||'-')}</td><td>${prettyDate(p.createdAt?.slice(0,10))}</td><td><div class="td-actions"><button class="btn-icon" title="Editar" onclick="openModal('paciente',DB.find('pacientes','${p.id}'))">${editIcon}</button><button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('pacientes','${p.id}')">${delIcon}</button></div></td></tr>`).join('');
+  tb.innerHTML=data.map(p=>`<tr><td><strong>${escH(p.nombre)}</strong></td><td>${escH(p.telefono||'-')}</td><td>${escH(p.correo||'-')}</td><td>${prettyDate(p.createdAt?.slice(0,10))}</td><td><div class="td-actions"><button class="btn-icon btn-icon--whatsapp" title="WhatsApp" onclick="enviarWhatsApp('paciente','${p.id}')">${waIcon}</button><button class="btn-icon" title="Editar" onclick="openModal('paciente',DB.find('pacientes','${p.id}'))">${editIcon}</button><button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('pacientes','${p.id}')">${delIcon}</button></div></td></tr>`).join('');
 }
 
 function renderHistoria(){
-  let data=DB.get('historia');const q=(document.getElementById('search-historia')?.value||'').toLowerCase();
-  if(q)data=data.filter(e=>e.nombre_paciente.toLowerCase().includes(q)||(e.tratamiento||'').toLowerCase().includes(q));
+  const select = document.getElementById('odontograma-paciente-select');
+  if (select) {
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">-- Seleccionar Paciente --</option>';
+    DB.get('pacientes').forEach(p => {
+      select.innerHTML += `<option value="${escH(p.nombre)}">${escH(p.nombre)}</option>`;
+    });
+    if (currentVal) select.value = currentVal;
+  }
+
+  const tbody = document.querySelector('#table-historia tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  let data = DB.get('historia');
+  const term = (document.getElementById('search-historia')?.value || '').toLowerCase();
+  
+  if (term) {
+      data = data.filter(e => e.nombre_paciente.toLowerCase().includes(term) || (e.tratamiento || '').toLowerCase().includes(term));
+  }
+  
   data.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
-  const tb=document.getElementById('historia-tbody'),em=document.getElementById('historia-empty');
-  if(!data.length){tb.innerHTML='';em.hidden=false;return}em.hidden=true;
-  tb.innerHTML=data.map(e=>`<tr><td><strong>${escH(e.nombre_paciente)}</strong></td><td>${prettyDate(e.fecha)}</td><td>${escH(e.diente_zona||'-')}</td><td>${escH(e.tratamiento)}</td><td>${escH(e.descripcion||'-')}</td><td><div class="td-actions"><button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('historia','${e.id}')">${delIcon}</button></div></td></tr>`).join('');
+  
+  tbody.innerHTML = data.map(e => `<tr>
+    <td><strong>${escH(e.nombre_paciente)}</strong></td>
+    <td>${prettyDate(e.fecha)}</td>
+    <td>${escH(e.diente_zona||'-')}</td>
+    <td>${escH(e.tratamiento)}</td>
+    <td>${escH(e.descripcion||'-')}</td>
+    <td>
+      <div class="td-actions">
+        <button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('historia','${e.id}')">Del</button>
+      </div>
+    </td>
+  </tr>`).join('');
+  
+  if (select && select.value) loadOdontogramaPaciente();
 }
+
 
 function renderPresupuestos(){
   let data=DB.get('presupuestos');const q=(document.getElementById('search-presupuestos')?.value||'').toLowerCase();
@@ -259,8 +640,28 @@ function renderPresupuestos(){
   data.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
   const tb=document.getElementById('presupuestos-tbody'),em=document.getElementById('presupuestos-empty');
   if(!data.length){tb.innerHTML='';em.hidden=false;return}em.hidden=true;
-  tb.innerHTML=data.map(p=>`<tr><td><strong>${escH(p.nombre_paciente)}</strong></td><td>${escH(p.tratamientos)}</td><td style="font-weight:700">${fmtMoney(p.monto)}</td><td><span class="tag tag--${p.estado}">${p.estado}</span></td><td>${prettyDate(p.fecha)}</td><td><div class="td-actions">${p.estado==='pendiente'?`<button class="btn-icon btn-icon--green" title="Aprobar" onclick="quickUpdate('presupuestos','${p.id}',{estado:'aprobado'})">${checkIcon}</button>`:''}
-  <button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('presupuestos','${p.id}')">${delIcon}</button></div></td></tr>`).join('');
+  
+  const printIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>';
+  
+  tb.innerHTML=data.map(p=>{
+      // Try parsing tratamientos to render a nice summary
+      let trSummary = escH(p.tratamientos);
+      try {
+          const parsed = JSON.parse(p.tratamientos);
+          if (Array.isArray(parsed)) {
+              trSummary = '<ul style="margin:0; padding-left:15px; font-size:12px; color:var(--gray-600);">' + 
+                          parsed.map(i => `<li style="margin-bottom:2px">${escH(i.concepto)} <strong style="color:var(--gray-900);float:right;margin-left:10px;">${fmtMoney(i.costo)}</strong></li>`).join('') + 
+                          '</ul>';
+          }
+      } catch(e) {}
+      
+      return `<tr><td><strong>${escH(p.nombre_paciente)}</strong></td><td>${trSummary}</td><td style="font-weight:700; vertical-align:top;">${fmtMoney(p.monto)}</td><td><span class="tag tag--${p.estado}">${p.estado}</span></td><td>${prettyDate(p.fecha)}</td><td><div class="td-actions">
+        ${p.estado==='pendiente' ? `<button class="btn-icon btn-icon--green" title="Aprobar" onclick="quickUpdate('presupuestos','${p.id}',{estado:'aprobado'})">${checkIcon}</button>` : ''}
+        <button class="btn-icon" title="Imprimir" onclick="imprimirPresupuesto('${p.id}')" style="color:var(--gray-600)">${printIcon}</button>
+        <button class="btn-icon" title="Editar" onclick="openModal('presupuesto',DB.find('presupuestos','${p.id}'))">${editIcon}</button>
+        <button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('presupuestos','${p.id}')">${delIcon}</button>
+      </div></td></tr>`;
+  }).join('');
 }
 
 function renderPagos(){
@@ -286,7 +687,7 @@ function renderGastos(){
   document.getElementById('gastos-total').textContent=fmtMoney(data.reduce((s,g)=>s+(g.monto||0),0));
   const tb=document.getElementById('gastos-tbody'),em=document.getElementById('gastos-empty');
   if(!data.length){tb.innerHTML='';em.hidden=false;return}em.hidden=true;
-  tb.innerHTML=data.map(g=>`<tr><td><strong>${escH(g.concepto)}</strong></td><td style="color:var(--red);font-weight:700">${fmtMoney(g.monto)}</td><td>${prettyDate(g.fecha)}</td><td><div class="td-actions"><button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('gastos','${g.id}')">${delIcon}</button></div></td></tr>`).join('');
+  tb.innerHTML=data.map(g=>`<tr><td><strong>${escH(g.concepto)}</strong></td><td style="color:var(--red);font-weight:700">${fmtMoney(g.monto)}</td><td>${escH(g.metodo||'Efectivo')}</td><td>${prettyDate(g.fecha)}</td><td><div class="td-actions"><button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('gastos','${g.id}')">${delIcon}</button></div></td></tr>`).join('');
 }
 
 function renderInventario(){
@@ -308,9 +709,60 @@ function renderTareas(){
   tb.innerHTML=data.map(t=>`<tr><td>${escH(t.descripcion)}</td><td><strong>${escH(t.responsable||'-')}</strong></td><td>${prettyDate(t.fecha_limite)}</td><td><span class="tag tag--${t.estado}">${t.estado}</span></td><td><div class="td-actions">${t.estado==='pendiente'?`<button class="btn-icon btn-icon--green" title="Completar" onclick="quickUpdate('tareas','${t.id}',{estado:'completada'})">${checkIcon}</button>`:''}<button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('tareas','${t.id}')">${delIcon}</button></div></td></tr>`).join('');
 }
 
+
+function enviarWhatsApp(tipo, idRelacionado) {
+    let telefono = '';
+    let mensaje = '';
+    let nombrePaciente = '';
+
+    if (tipo === 'cita') {
+        const cita = DB.find('citas', idRelacionado);
+        if (!cita) return;
+        nombrePaciente = cita.nombre_paciente;
+        
+        // Buscar teléfono en pacientes
+        const paciente = DB.get('pacientes').find(p => p.nombre === nombrePaciente);
+        if (paciente && paciente.telefono) {
+            telefono = paciente.telefono;
+        }
+        
+        mensaje = `Hola ${nombrePaciente}, nos comunicamos de CareDent para recordarte tu cita programada para el ${prettyDate(cita.fecha)} a las ${cita.hora}. Por favor confírmanos tu asistencia. ¡Te esperamos!`;
+    } else if (tipo === 'paciente') {
+        const paciente = DB.find('pacientes', idRelacionado);
+        if (!paciente) return;
+        nombrePaciente = paciente.nombre;
+        if (paciente.telefono) telefono = paciente.telefono;
+        
+        mensaje = `Hola ${nombrePaciente}, nos comunicamos de la clínica dental. `;
+    }
+
+    if (!telefono) {
+        showToast('El paciente no tiene un número de teléfono registrado.', 'error');
+        return;
+    }
+
+    // Limpiar número (quitar espacios, guiones, etc.)
+    telefono = telefono.replace(/\D/g, '');
+    
+    // Asumir lada de México si tiene 10 dígitos (ajustable)
+    if (telefono.length === 10) telefono = '52' + telefono;
+
+    const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, '_blank');
+}
+
+
+function imprimirCorteCaja() {
+    document.body.classList.add('printing-corte');
+    window.print();
+    setTimeout(() => {
+        document.body.classList.remove('printing-corte');
+    }, 1000);
+}
+
 /* Quick actions */
 function quickUpdate(col,id,patch){DB.update(col,id,patch);const renders={citas:renderCitas,presupuestos:renderPresupuestos,tareas:renderTareas};renders[col]?.();refreshDashboard();showToast('Actualizado','success')}
-function quickDelete(col,id){if(!confirm('¿Eliminar este registro?'))return;DB.remove(col,id);const renders={citas:renderCitas,pacientes:renderPacientes,historia:renderHistoria,presupuestos:renderPresupuestos,pagos:renderPagos,gastos:renderGastos,inventario:renderInventario,tareas:renderTareas};renders[col]?.();refreshDashboard();showToast('Eliminado','info')}
+function quickDelete(col,id){if(!confirm('¿Eliminar este registro?'))return;DB.remove(col,id);const renders={citas:renderCitas,pacientes:renderPacientes,historia:renderHistoria,presupuestos:renderPresupuestos,pagos:renderPagos,gastos:renderGastos,inventario:renderInventario,tareas:renderTareas,recetas:renderRecetas};renders[col]?.();refreshDashboard();showToast('Eliminado','info')}
 
 /* ─── 6. REPORTES ─── */
 function renderReportes(){
@@ -336,6 +788,55 @@ function renderReportes(){
     <div class="income-big ${balance>=0?'income-big--green':'income-big--red'}">${fmtMoney(balance)}</div>
     <p class="income-label">Balance (Ingresos − Gastos)</p>
     ${Object.entries(byMethod).map(([m,v])=>`<div class="income-method"><span class="income-method__name">${escH(m)}</span><span class="income-method__val">${fmtMoney(v)}</span></div>`).join('')||'<p style="color:var(--gray-400);font-size:12px">Sin pagos</p>'}`;
+    
+  // CORTE DE CAJA
+  const efe = byMethod['Efectivo'] || 0;
+  const tar = byMethod['Tarjeta'] || 0;
+  const tra = byMethod['Transferencia'] || 0;
+  const gastosEfectivo = fg.filter(g => !g.metodo || g.metodo === 'Efectivo').reduce((s, g) => s + (g.monto || 0), 0);
+  const gastosTarjeta = totalGastos - gastosEfectivo;
+  const efNeto = efe - gastosEfectivo;
+  
+  if (document.getElementById('rpt-corte-caja')) {
+    document.getElementById('rpt-corte-caja').innerHTML = `
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px;"><span>Efectivo:</span> <strong>${fmtMoney(efe)}</strong></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px;"><span>Tarjeta:</span> <strong>${fmtMoney(tar)}</strong></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px;"><span>Transferencia:</span> <strong>${fmtMoney(tra)}</strong></div>
+      <hr style="margin:10px 0;border-top:1px solid #e5e7eb;">
+      ${gastosEfectivo > 0 ? `<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:var(--red);"><span>Gastos en Efectivo (Se restan):</span> <strong>${fmtMoney(gastosEfectivo)}</strong></div>` : ''}
+      ${gastosTarjeta > 0 ? `<div style="display:flex;justify-content:space-between;margin-bottom:5px;color:var(--orange);"><span>Gastos con Tarjeta/Transf.:</span> <strong>${fmtMoney(gastosTarjeta)}</strong></div>` : ''}
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:16px;color:var(--green);"><span><strong>Efectivo Neto en Caja:</strong></span> <strong>${fmtMoney(efNeto)}</strong></div>
+      <div style="display:flex;justify-content:space-between;font-size:16px;color:var(--blue);"><span><strong>Ingreso Total:</strong></span> <strong>${fmtMoney(totalIngresos)}</strong></div>
+    `;
+  }
+  
+  // PRODUCCIÓN POR DOCTOR
+  if (document.getElementById('rpt-doctores-tbody')) {
+    const byDoc = {};
+    fp.forEach(p => {
+        const doc = p.doctor || 'Clínica / Sin Asignar';
+        byDoc[doc] = (byDoc[doc] || 0) + (p.monto || 0);
+    });
+    const tbDoc = Object.entries(byDoc).sort((a,b)=>b[1]-a[1]).map(([d, v]) => `
+        <tr><td>${escH(d)}</td><td style="color:var(--blue);font-weight:bold;">${fmtMoney(v)}</td></tr>
+    `).join('');
+    document.getElementById('rpt-doctores-tbody').innerHTML = tbDoc || '<tr><td colspan="2" style="text-align:center;">No hay ingresos</td></tr>';
+  }
+  
+  // PREPARAR TICKET DE IMPRESIÓN
+  if (document.getElementById('corte-fecha-impresion')) {
+    document.getElementById('corte-fecha-impresion').textContent = new Date().toLocaleString('es-MX');
+    document.getElementById('corte-periodo').textContent = document.getElementById('reporte-periodo').options[document.getElementById('reporte-periodo').selectedIndex].text;
+    document.getElementById('corte-ingresos').innerHTML = `
+      Efectivo: ${fmtMoney(efe)}<br>
+      Tarjeta: ${fmtMoney(tar)}<br>
+      Transferencia: ${fmtMoney(tra)}<br>
+      <strong>TOTAL INGRESOS: ${fmtMoney(totalIngresos)}</strong>
+    `;
+    document.getElementById('corte-gastos').innerHTML = fg.map(g => `${escH(g.concepto)} (${escH(g.metodo||'Efectivo')}): ${fmtMoney(g.monto)}`).join('<br>') + `<br><strong>TOTAL GASTOS: ${fmtMoney(totalGastos)}</strong><br><small>Gastos en efectivo: ${fmtMoney(gastosEfectivo)}</small>`;
+    document.getElementById('corte-neto').textContent = fmtMoney(efNeto);
+  }
+
 
   // Bar chart
   const byMot={};fc.forEach(c=>{byMot[c.motivo||'Otro']=(byMot[c.motivo||'Otro']||0)+1});
@@ -365,16 +866,46 @@ function openModal(type,editData){
     body.innerHTML=`<div class="form-group"><label class="form-label">Nombre completo</label><input class="form-input" id="f-nombre" placeholder="Juan Pérez" value="${escH(editData?.nombre||'')}"></div><div class="form-row"><div class="form-group"><label class="form-label">Teléfono</label><input class="form-input" id="f-tel" placeholder="555-123-4567" value="${escH(editData?.telefono||'')}"></div><div class="form-group"><label class="form-label">Correo</label><input class="form-input" type="email" id="f-correo" placeholder="correo@mail.com" value="${escH(editData?.correo||'')}"></div></div>`;
   }else if(type==='pago'){
     title.textContent='Registrar Pago';sub.textContent='Registrar';
-    body.innerHTML=`<div class="form-group"><label class="form-label">Paciente</label><select class="form-input form-select" id="f-pac"><option value="">Seleccionar...</option>${pacOpts()}</select></div><div class="form-row"><div class="form-group"><label class="form-label">Monto ($)</label><input class="form-input" type="number" id="f-monto" placeholder="0" min="0"></div><div class="form-group"><label class="form-label">Método</label><select class="form-input form-select" id="f-metodo"><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option></select></div></div><div class="form-group"><label class="form-label">Concepto</label><select class="form-input form-select" id="f-concepto"><option value="">Seleccionar...</option>${motivoOpts()}</select></div>`;
+    body.innerHTML=`<div class="form-group"><label class="form-label">Paciente</label><select class="form-input form-select" id="f-pac"><option value="">Seleccionar...</option>${pacOpts()}</select></div><div class="form-row"><div class="form-group"><label class="form-label">Monto ($)</label><input class="form-input" type="number" id="f-monto" placeholder="0" min="0" value="${editData?.monto||''}"></div><div class="form-group"><label class="form-label">Método</label><select class="form-input form-select" id="f-metodo"><option ${editData?.metodo==='Efectivo'?'selected':''}>Efectivo</option><option ${editData?.metodo==='Tarjeta'?'selected':''}>Tarjeta</option><option ${editData?.metodo==='Transferencia'?'selected':''}>Transferencia</option></select></div></div><div class="form-row"><div class="form-group"><label class="form-label">Concepto</label><select class="form-input form-select" id="f-concepto"><option value="">Seleccionar...</option>${motivoOpts()}</select></div><div class="form-group"><label class="form-label">Doctor / Asistente</label><input class="form-input" id="f-doctor" placeholder="Ej: Dra. Rosa, Dr. Juan" value="${escH(editData?.doctor||'')}"></div></div>`;
   }else if(type==='historia'){
     title.textContent='Registrar Evolución Clínica';sub.textContent='Guardar';
     body.innerHTML=`<div class="form-group"><label class="form-label">Paciente</label><select class="form-input form-select" id="f-pac"><option value="">Seleccionar...</option>${pacOpts()}</select></div><div class="form-row"><div class="form-group"><label class="form-label">Diente / Zona</label><input class="form-input" id="f-diente" placeholder="Ej: Molar 36, Arcada sup."></div><div class="form-group"><label class="form-label">Tratamiento</label><input class="form-input" id="f-tratamiento" placeholder="Ej: Resina, Brackets"></div></div><div class="form-group"><label class="form-label">Descripción del procedimiento</label><textarea class="form-input form-textarea" id="f-desc" placeholder="Detalles del procedimiento realizado..."></textarea></div>`;
   }else if(type==='presupuesto'){
-    title.textContent='Nuevo Presupuesto';sub.textContent='Crear';
-    body.innerHTML=`<div class="form-group"><label class="form-label">Paciente</label><select class="form-input form-select" id="f-pac"><option value="">Seleccionar...</option>${pacOpts()}</select></div><div class="form-group"><label class="form-label">Tratamientos</label><textarea class="form-input form-textarea" id="f-tratamientos" placeholder="Ej: Limpieza + Blanqueamiento + Corona diente 14"></textarea></div><div class="form-group"><label class="form-label">Monto total estimado ($)</label><input class="form-input" type="number" id="f-monto" placeholder="0" min="0"></div>`;
+    title.textContent=isE?'Editar Presupuesto':'Nuevo Presupuesto';sub.textContent=isE?'Actualizar':'Crear';
+    body.innerHTML=`<div class="form-group"><label class="form-label">Paciente</label><select class="form-input form-select" id="f-pac"><option value="">Seleccionar...</option>${pacOpts()}</select></div>
+    
+    <div class="form-group">
+      <label class="form-label">Desglose de Tratamientos</label>
+      <div id="p-items-container"></div>
+      <button type="button" class="btn-add-row" onclick="addPItem()">+ Añadir Tratamiento</button>
+    </div>
+    
+    <div class="form-group" style="display:flex; justify-content:space-between; align-items:center; background:var(--gray-50); padding:10px; border-radius:6px; border:1px solid var(--gray-200);">
+        <label class="form-label" style="margin:0;">Monto Total Automático ($)</label>
+        <input class="form-input" type="number" id="f-monto" placeholder="0" min="0" value="${editData?.monto||'0'}" style="width:120px; font-weight:bold; background:#fff; text-align:right;" readonly>
+    </div>
+    
+    ${isE ? `<div class="form-group" style="margin-top:15px;"><label class="form-label">Estado</label><select class="form-input form-select" id="f-estado"><option ${editData.estado==='pendiente'?'selected':''}>pendiente</option><option ${editData.estado==='aprobado'?'selected':''}>aprobado</option><option ${editData.estado==='rechazado'?'selected':''}>rechazado</option></select></div>` : ''}`;
+    
+    setTimeout(() => {
+        if(isE && editData.tratamientos) {
+            try {
+                const items = JSON.parse(editData.tratamientos);
+                if (Array.isArray(items)) {
+                    items.forEach(i => addPItem(i.concepto, i.costo));
+                } else {
+                    addPItem(editData.tratamientos, editData.monto);
+                }
+            } catch(e) {
+                addPItem(editData.tratamientos, editData.monto);
+            }
+        } else {
+            addPItem(); // 1 fila vacia
+        }
+    }, 10);
   }else if(type==='gasto'){
     title.textContent='Registrar Gasto';sub.textContent='Registrar';
-    body.innerHTML=`<div class="form-group"><label class="form-label">Concepto</label><input class="form-input" id="f-concepto" placeholder="Ej: Renta, Material, Luz"></div><div class="form-group"><label class="form-label">Monto ($)</label><input class="form-input" type="number" id="f-monto" placeholder="0" min="0"></div>`;
+    body.innerHTML=`<div class="form-group"><label class="form-label">Concepto</label><input class="form-input" id="f-concepto" placeholder="Ej: Renta, Material, Luz"></div><div class="form-row"><div class="form-group"><label class="form-label">Monto ($)</label><input class="form-input" type="number" id="f-monto" placeholder="0" min="0"></div><div class="form-group"><label class="form-label">Método de Pago</label><select class="form-input form-select" id="f-metodo"><option>Efectivo</option><option>Tarjeta</option><option>Transferencia</option></select></div></div>`;
   }else if(type==='inventario'){
     title.textContent='Movimiento de Inventario';sub.textContent='Registrar';
     body.innerHTML=`<div class="form-group"><label class="form-label">Nombre del insumo</label><input class="form-input" id="f-insumo" placeholder="Ej: Guantes de látex"></div><div class="form-row"><div class="form-group"><label class="form-label">Cantidad</label><input class="form-input" type="number" id="f-qty" placeholder="0" min="1"></div><div class="form-group"><label class="form-label">Tipo de movimiento</label><select class="form-input form-select" id="f-tipo"><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></div></div>`;
@@ -401,19 +932,42 @@ function submitModal(){
     addFeedItem({title:`${modalEditId?'Paciente actualizado':'Nuevo paciente'}: ${v('f-nombre')}`,sub:v('f-tel')||v('f-correo'),type:'paciente'});
   }else if(modalType==='pago'){
     if(!req(['f-pac','f-monto','f-concepto'],['Paciente','Monto','Concepto']))return;
-    DB.add('pagos',{nombre_paciente:v('f-pac'),monto:parseFloat(v('f-monto')),concepto:v('f-concepto'),metodo:v('f-metodo'),fecha:todayStr()});
+    if(modalEditId) DB.update('pagos',modalEditId,{nombre_paciente:v('f-pac'),monto:parseFloat(v('f-monto')),concepto:v('f-concepto'),metodo:v('f-metodo'),doctor:v('f-doctor'),fecha:todayStr()});
+    else DB.add('pagos',{nombre_paciente:v('f-pac'),monto:parseFloat(v('f-monto')),concepto:v('f-concepto'),metodo:v('f-metodo'),doctor:v('f-doctor'),fecha:todayStr()});
     addFeedItem({title:`Pago ${fmtMoney(v('f-monto'))} – ${v('f-pac')}`,sub:v('f-concepto'),type:'pago'});
   }else if(modalType==='historia'){
     if(!req(['f-pac','f-diente','f-tratamiento'],['Paciente','Diente/Zona','Tratamiento']))return;
     DB.add('historia',{nombre_paciente:v('f-pac'),diente_zona:v('f-diente'),tratamiento:v('f-tratamiento'),descripcion:v('f-desc'),fecha:todayStr()});
     addFeedItem({title:`Evolución: ${v('f-pac')}`,sub:`${v('f-diente')} – ${v('f-tratamiento')}`,type:'historia'});
   }else if(modalType==='presupuesto'){
-    if(!req(['f-pac','f-tratamientos','f-monto'],['Paciente','Tratamientos','Monto']))return;
-    DB.add('presupuestos',{nombre_paciente:v('f-pac'),tratamientos:v('f-tratamientos'),monto:parseFloat(v('f-monto')),estado:'pendiente',fecha:todayStr()});
-    addFeedItem({title:`Presupuesto: ${v('f-pac')}`,sub:`${fmtMoney(v('f-monto'))} – ${v('f-tratamientos')}`,type:'presupuesto'});
+    // Recopilar items dinámicos
+    const concepts = Array.from(document.querySelectorAll('.p-item-concepto')).map(el => el.value.trim());
+    const costos = Array.from(document.querySelectorAll('.p-item-costo')).map(el => parseFloat(el.value) || 0);
+    
+    let items = [];
+    let sum = 0;
+    for(let i = 0; i < concepts.length; i++) {
+        if (concepts[i] || costos[i] > 0) {
+            items.push({ concepto: concepts[i] || 'Tratamiento', costo: costos[i] });
+            sum += costos[i];
+        }
+    }
+    
+    if(!req(['f-pac'],['Paciente']))return;
+    if(items.length === 0) { showToast('Debes añadir al menos un tratamiento', 'error'); return; }
+    
+    const tratamientosJSON = JSON.stringify(items);
+    
+    if(modalEditId) {
+        DB.update('presupuestos', modalEditId, {nombre_paciente:v('f-pac'), tratamientos:tratamientosJSON, monto:sum, estado:v('f-estado')||'pendiente'});
+        addFeedItem({title:`Presupuesto Actualizado: ${v('f-pac')}`,sub:`${fmtMoney(sum)} (Modificado)`,type:'presupuesto'});
+    } else {
+        DB.add('presupuestos',{nombre_paciente:v('f-pac'),tratamientos:tratamientosJSON,monto:sum,estado:'pendiente',fecha:todayStr()});
+        addFeedItem({title:`Presupuesto: ${v('f-pac')}`,sub:`${fmtMoney(sum)}`,type:'presupuesto'});
+    }
   }else if(modalType==='gasto'){
     if(!req(['f-concepto','f-monto'],['Concepto','Monto']))return;
-    DB.add('gastos',{concepto:v('f-concepto'),monto:parseFloat(v('f-monto')),fecha:todayStr()});
+    DB.add('gastos',{concepto:v('f-concepto'),monto:parseFloat(v('f-monto')),metodo:v('f-metodo')||'Efectivo',fecha:todayStr()});
     addFeedItem({title:`Gasto: ${v('f-concepto')}`,sub:fmtMoney(v('f-monto')),type:'gasto'});
   }else if(modalType==='inventario'){
     if(!req(['f-insumo','f-qty'],['Insumo','Cantidad']))return;
@@ -580,3 +1134,74 @@ document.addEventListener('DOMContentLoaded', async () => {
   const activeSection = document.querySelector('.nav-item--active')?.dataset?.section;
   if(activeSection && activeSection !== 'dashboard') navigateTo(activeSection);
 });
+
+
+function addPItem(concepto = '', costo = '') {
+    const container = document.getElementById('p-items-container');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.className = 'p-row';
+    div.innerHTML = `
+        <input type="text" class="form-input p-item-concepto" placeholder="Concepto / Tratamiento" value="${escH(concepto)}">
+        <input type="number" class="form-input p-item-costo" placeholder="Costo $" min="0" value="${costo}" oninput="calcPTotal()">
+        <button type="button" class="btn-remove-row" onclick="deletePItem(this)" title="Borrar">✕</button>
+    `;
+    container.appendChild(div);
+    calcPTotal();
+}
+function deletePItem(btn) {
+    btn.parentElement.remove();
+    calcPTotal();
+}
+function calcPTotal() {
+    const costos = Array.from(document.querySelectorAll('.p-item-costo')).map(el => parseFloat(el.value) || 0);
+    const total = costos.reduce((a,b) => a + b, 0);
+    const fMonto = document.getElementById('f-monto');
+    if (fMonto) fMonto.value = total;
+}
+function imprimirPresupuesto(id) {
+    const p = DB.find('presupuestos', id);
+    if (!p) return;
+    
+    const mostrarTotal = confirm("¿Deseas INCLUIR el Total Estimado en el PDF que vas a imprimir?\n\nOk = Sí (Mostrar desglose y total)\nCancelar = No (Solo desglose, sin total final)");
+    
+    const dDate = document.getElementById('print-p-fecha');
+    if (dDate) dDate.textContent = prettyDate(p.fecha);
+    
+    const dPac = document.getElementById('print-p-paciente');
+    if (dPac) dPac.textContent = p.nombre_paciente;
+    
+    let items = [];
+    try {
+        items = JSON.parse(p.tratamientos);
+        if (!Array.isArray(items)) throw new Error('Not array');
+    } catch(e) {
+        items = [{ concepto: p.tratamientos, costo: p.monto }];
+    }
+    
+    const tbody = document.getElementById('print-p-tbody');
+    if (tbody) {
+        tbody.innerHTML = items.map(i => `
+            <tr>
+                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${escH(i.concepto)}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #4b5563;">${fmtMoney(i.costo)}</td>
+            </tr>
+        `).join('');
+    }
+    
+    const totalContainer = document.getElementById('print-p-total-container');
+    if (totalContainer) {
+        if (mostrarTotal) {
+            totalContainer.style.display = 'flex';
+            document.getElementById('print-p-total').textContent = fmtMoney(p.monto);
+        } else {
+            totalContainer.style.display = 'none';
+        }
+    }
+    
+    document.body.classList.add('printing-presupuesto');
+    window.print();
+    setTimeout(() => {
+        document.body.classList.remove('printing-presupuesto');
+    }, 1000);
+}
