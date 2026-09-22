@@ -574,14 +574,119 @@ const delIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 const waIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
 const checkIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
 
-function renderCitas(){
-  let data=DB.get('citas');const q=(document.getElementById('search-citas')?.value||'').toLowerCase();
-  if(q)data=data.filter(c=>c.nombre_paciente.toLowerCase().includes(q)||(c.motivo||'').toLowerCase().includes(q));
-  if(tableFilters.citas!=='all')data=data.filter(c=>c.estado===tableFilters.citas);
-  data.sort((a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora));
-  const tb=document.getElementById('citas-tbody'),em=document.getElementById('citas-empty');
-  if(!data.length){tb.innerHTML='';em.hidden=false;return}em.hidden=true;
-  tb.innerHTML=data.map(c=>`<tr><td><strong>${escH(c.nombre_paciente)}</strong></td><td>${prettyDate(c.fecha)}</td><td>${escH(c.hora)}</td><td>${escH(c.motivo)}</td><td><span class="tag tag--${c.estado}">${c.estado}</span></td><td><div class="td-actions">${c.estado==='pendiente'?`<button class="btn-icon btn-icon--green" title="Completar" onclick="quickUpdate('citas','${c.id}',{estado:'completada'})">${checkIcon}</button>`:''}<button class="btn-icon btn-icon--whatsapp" title="WhatsApp" onclick="enviarWhatsApp('cita','${c.id}')">${waIcon}</button><button class="btn-icon" title="Editar" onclick="openModal('cita',DB.find('citas','${c.id}'))">${editIcon}</button><button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('citas','${c.id}')">${delIcon}</button></div></td></tr>`).join('');
+function renderCitas() {
+  let data = DB.get('citas');
+  const q = (document.getElementById('search-citas')?.value || '').toLowerCase();
+  if (q) data = data.filter(c => c.nombre_paciente.toLowerCase().includes(q) || (c.motivo || '').toLowerCase().includes(q));
+
+  // Initialize Mini Calendar
+  if (!window.miniCalendar) {
+    const miniEl = document.getElementById('mini-calendar');
+    if (miniEl) {
+      window.miniCalendar = new FullCalendar.Calendar(miniEl, {
+        initialView: 'dayGridMonth',
+        locale: 'es',
+        headerToolbar: { left: 'prev', center: 'title', right: 'next' },
+        fixedWeekCount: false,
+        showNonCurrentDates: false,
+        height: 'auto',
+        contentHeight: 'auto',
+        dateClick: function(info) {
+          if (window.calendar) {
+            window.calendar.gotoDate(info.dateStr);
+            window.calendar.changeView('timeGridDay');
+            
+            // Highlight the selected day in mini calendar
+            document.querySelectorAll('#mini-calendar .fc-daygrid-day').forEach(el => el.style.backgroundColor = '');
+            info.dayEl.style.backgroundColor = 'var(--blue-50)';
+          }
+        }
+      });
+      window.miniCalendar.render();
+    }
+  }
+
+  // Initialize Main Calendar
+  if (!window.calendar) {
+    const el = document.getElementById('citas-calendar');
+    if (el) {
+      window.calendar = new FullCalendar.Calendar(el, {
+        initialView: 'timeGridWeek',
+        locale: 'es',
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        scrollTime: '08:00:00',
+        businessHours: [
+          { daysOfWeek: [1, 2, 3, 4, 5], startTime: '09:00', endTime: '19:00' },
+          { daysOfWeek: [6], startTime: '09:00', endTime: '15:00' }
+        ],
+        nowIndicator: true,
+        slotLabelFormat: {
+          hour: 'numeric',
+          minute: '2-digit',
+          omitZeroMinute: true,
+          hour12: true
+        },
+        allDaySlot: false,
+        events: [],
+        eventClick: function(info) {
+          openModal('cita', DB.find('citas', info.event.id));
+        },
+        dateClick: function(info) {
+          let time = '';
+          if (info.dateStr.includes('T')) {
+            time = info.dateStr.split('T')[1].substring(0, 5);
+          }
+          openModal('cita', { fecha: info.dateStr.split('T')[0], hora: time });
+        },
+        datesSet: function(info) {
+          // Sync mini calendar to main calendar's view when navigating prev/next
+          if (window.miniCalendar) {
+            window.miniCalendar.gotoDate(info.start);
+          }
+        }
+      });
+      window.calendar.render();
+    }
+  }
+
+  if (window.calendar) {
+    const evts = data.map(c => {
+      let color = '#3b82f6'; // blue (pendiente)
+      if (c.estado === 'completada') color = '#10b981'; // green
+      if (c.estado === 'cancelada') color = '#ef4444'; // red
+      
+      let titleStr = c.nombre_paciente;
+      if (c.motivo) titleStr += ' - ' + c.motivo;
+
+      return {
+        id: c.id,
+        title: titleStr,
+        start: c.fecha + 'T' + (c.hora || '09:00:00'),
+        backgroundColor: color,
+        borderColor: color
+      };
+    });
+    
+    const currentEvents = window.calendar.getEventSources();
+    if (currentEvents.length > 0) currentEvents[0].remove();
+    window.calendar.addEventSource(evts);
+    
+    if (window.miniCalendar) {
+      const miniEvents = window.miniCalendar.getEventSources();
+      if (miniEvents.length > 0) miniEvents[0].remove();
+      // Solo mostramos puntitos en el mini calendario para saber si hay citas
+      window.miniCalendar.addEventSource(evts.map(e => ({ start: e.start, display: 'list-item', color: e.backgroundColor })));
+    }
+    
+    setTimeout(() => {
+       window.calendar.render();
+       if(window.miniCalendar) window.miniCalendar.render();
+    }, 50);
+  }
 }
 
 function renderPacientes(){
