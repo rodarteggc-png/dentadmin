@@ -96,6 +96,106 @@ app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => 
     });
 });
 
+// --- Integración con Asistente Virtual (Bot de Citas) ---
+function registrarCitaDesdeBot({ nombre, telefono, fecha, hora, motivo }, callback) {
+    if (!nombre || !fecha || !hora) {
+        return callback(new Error('Faltan datos obligatorios (nombre, fecha u hora)'));
+    }
+    const createdAt = new Date().toISOString();
+
+    // 1. Verificar o crear el paciente
+    db.get(`SELECT id FROM pacientes WHERE LOWER(nombre) = LOWER(?)`, [nombre.trim()], (err, pacienteRow) => {
+        if (err) return callback(err);
+
+        const insertarCita = () => {
+            // 2. Evitar duplicados exactos si se hace clic dos veces en el correo
+            db.get(
+                `SELECT * FROM citas WHERE LOWER(nombre_paciente) = LOWER(?) AND fecha = ? AND hora = ?`,
+                [nombre.trim(), fecha, hora],
+                (err2, citaExistente) => {
+                    if (err2) return callback(err2);
+                    if (citaExistente) {
+                        return callback(null, { cita: citaExistente, duplicada: true });
+                    }
+
+                    const nuevaCita = {
+                        id: generateId(),
+                        nombre_paciente: nombre.trim(),
+                        fecha,
+                        hora,
+                        motivo: motivo || 'Valoración General',
+                        estado: 'pendiente',
+                        createdAt
+                    };
+                    db.run(
+                        `INSERT INTO citas (id, nombre_paciente, fecha, hora, motivo, estado, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        [nuevaCita.id, nuevaCita.nombre_paciente, nuevaCita.fecha, nuevaCita.hora, nuevaCita.motivo, nuevaCita.estado, nuevaCita.createdAt],
+                        (err3) => {
+                            if (err3) return callback(err3);
+                            callback(null, { cita: nuevaCita, duplicada: false });
+                        }
+                    );
+                }
+            );
+        };
+
+        if (!pacienteRow) {
+            db.run(
+                `INSERT INTO pacientes (id, nombre, telefono, correo, createdAt) VALUES (?, ?, ?, ?, ?)`,
+                [generateId(), nombre.trim(), telefono || '', '', createdAt],
+                (errPac) => {
+                    if (errPac) return callback(errPac);
+                    insertarCita();
+                }
+            );
+        } else {
+            insertarCita();
+        }
+    });
+}
+
+// POST automático desde el chatbot
+app.post('/api/bot-cita', (req, res) => {
+    registrarCitaDesdeBot(req.body || {}, (err, result) => {
+        if (err) return res.status(400).json({ error: err.message });
+        res.json({ success: true, ...result });
+    });
+});
+
+// GET de 1 clic desde el correo de la doctora
+app.get('/api/bot-cita', (req, res) => {
+    registrarCitaDesdeBot(req.query || {}, (err, result) => {
+        if (err) {
+            return res.status(400).send(`<h2>❌ Error al registrar cita: ${err.message}</h2>`);
+        }
+        const { cita, duplicada } = result;
+        res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Cita Registrada — DentAdmin</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #eef4fb; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    .card { background: #fff; padding: 32px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.1); max-width: 420px; text-align: center; }
+    h2 { color: #2b6cb0; margin-top: 0; }
+    p { color: #334155; margin: 8px 0; font-size: 15px; }
+    .btn { display: inline-block; margin-top: 20px; padding: 12px 24px; background: #3b82f6; color: #fff; text-decoration: none; border-radius: 999px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>${duplicada ? 'ℹ️ La cita ya estaba registrada' : '✅ Cita registrada en DentAdmin'}</h2>
+    <p><strong>Paciente:</strong> ${cita.nombre_paciente}</p>
+    <p><strong>Servicio:</strong> ${cita.motivo}</p>
+    <p><strong>Fecha y Hora:</strong> ${cita.fecha} a las ${cita.hora}</p>
+    <p><strong>Estado:</strong> Pendiente</p>
+    <a class="btn" href="/">Abrir Panel DentAdmin</a>
+  </div>
+</body>
+</html>`);
+    });
+});
+
 // --- Endpoints Genéricos CRUD ---
 // Aplicar middleware a todas las rutas bajo /api/ (excepto login)
 app.use('/api/:col', authenticateToken);
