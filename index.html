@@ -442,6 +442,86 @@
           </div>
       </div>
 
+<!-- FORMATO DE IMPRESIÓN DE PAGO (OCULTO EN PANTALLA) -->
+      <div id="print-pago" style="display:none; font-family: Arial, sans-serif;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--blue); padding-bottom: 20px; margin-bottom: 30px;">
+              <div style="display: flex; align-items: center; gap: 15px;">
+                  <img src="logo.jpg" alt="Logo" style="width: 100px; height: 100px; object-fit: contain; border-radius: 50%;">
+                  <div>
+                      <h2 style="color: var(--blue); margin: 0; font-size: 28px;">Ticket de Pago</h2>
+                      <p style="margin: 5px 0 0 0; color: #4b5563; font-size: 14px;">Clínica Dental Dra. Rosa Avila<br>Av. Manuel Ordoñez 725, El Lechugal<br><strong>WhatsApp/Tel:</strong> 81 1221 9911<br><strong>Correo:</strong> dra.avilaodontologia@gmail.com</p>
+                  </div>
+              </div>
+              <div style="text-align: right; font-size: 14px;">
+                  <p style="margin: 0;"><strong>Fecha:</strong> <span id="print-pago-fecha"></span></p>
+                  <p style="margin: 5px 0 0 0;"><strong>Folio de pago:</strong> <span id="print-pago-id"></span></p>
+              </div>
+          </div>
+          
+          <div style="margin-bottom: 30px; font-size: 16px;">
+              <p><strong>Paciente:</strong> <span id="print-pago-paciente"></span></p>
+              <p><strong>Concepto:</strong> <span id="print-pago-concepto"></span></p>
+              <p><strong>Método de pago:</strong> <span id="print-pago-metodo"></span></p>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 50px;">
+              <div style="background: #eff6ff; padding: 15px 30px; border-radius: 8px; border: 1px solid #bfdbfe; text-align: right; min-width: 250px;">
+                  <h3 style="margin: 0 0 5px 0; color: #1e3a8a; font-size: 16px;">MONTO PAGADO</h3>
+                  <h1 id="print-pago-monto" style="margin: 0; font-size: 32px; color: var(--blue);"></h1>
+              </div>
+          </div>
+          
+          <div style="text-align: center; color: #6b7280; font-size: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+              <p>¡Gracias por su pago!</p>
+          </div>
+      </div>
+
+<!-- FORMATO DE IMPRESIÓN DE REMISIÓN (OCULTO EN PANTALLA) -->
+      <div id="print-remision" style="display:none; font-family: Arial, sans-serif;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--blue); padding-bottom: 20px; margin-bottom: 30px;">
+              <div style="display: flex; align-items: center; gap: 15px;">
+                  <img src="logo.jpg" alt="Logo" style="width: 100px; height: 100px; object-fit: contain; border-radius: 50%;">
+                  <div>
+                      <h2 style="color: var(--blue); margin: 0; font-size: 28px;">Nota de Tratamiento</h2>
+                      <p style="margin: 5px 0 0 0; color: #4b5563; font-size: 14px;">Clínica Dental Dra. Rosa Avila<br>Av. Manuel Ordoñez 725, El Lechugal<br><strong>WhatsApp/Tel:</strong> 81 1221 9911</p>
+                  </div>
+              </div>
+              <div style="text-align: right; font-size: 14px;">
+                  <p style="margin: 0;"><strong>Fecha:</strong> <span id="print-rem-fecha"></span></p>
+              </div>
+          </div>
+          
+          <div style="margin-bottom: 30px; font-size: 16px;">
+              <p><strong>Paciente:</strong> <span id="print-rem-paciente"></span></p>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+              <thead>
+                  <tr style="background-color: #f3f4f6; color: #374151; text-align: left;">
+                      <th style="padding: 12px; border-bottom: 2px solid #d1d5db;">Diente / Zona</th>
+                      <th style="padding: 12px; border-bottom: 2px solid #d1d5db;">Tratamiento</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  <tr>
+                      <td id="print-rem-diente" style="padding: 12px; border-bottom: 1px solid #e5e7eb;"></td>
+                      <td id="print-rem-tratamiento" style="padding: 12px; border-bottom: 1px solid #e5e7eb;"></td>
+                  </tr>
+              </tbody>
+          </table>
+          
+          <div style="margin-bottom: 40px;">
+              <h4 style="margin-bottom: 5px; color: #374151;">Observaciones / Descripción:</h4>
+              <p id="print-rem-desc" style="padding: 15px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 5px; min-height: 80px;"></p>
+          </div>
+          
+          <div style="margin-top: 80px; text-align: center;">
+              <div style="border-top: 1px solid #000; width: 250px; margin: 0 auto 10px auto;"></div>
+              <p style="margin: 0; font-weight: bold;">Firma del Doctor(a)</p>
+              <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Dra. Rosa Irasema Avila Acevedo</p>
+          </div>
+      </div>
+
 <!-- FORMATO DE IMPRESIÓN DEL CORTE (OCULTO EN PANTALLA) -->
       <div id="print-corte" style="display:none; font-family: Arial, sans-serif;">
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 20px;">

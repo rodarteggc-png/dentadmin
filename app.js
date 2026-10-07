@@ -779,7 +779,8 @@ function renderPagos(){
   document.getElementById('pagos-count').textContent=data.length;
   const tb=document.getElementById('pagos-tbody'),em=document.getElementById('pagos-empty');
   if(!data.length){tb.innerHTML='';em.hidden=false;return}em.hidden=true;
-  tb.innerHTML=data.map(p=>`<tr><td><strong>${escH(p.nombre_paciente)}</strong></td><td style="color:var(--green);font-weight:700">${fmtMoney(p.monto)}</td><td>${escH(p.concepto||'-')}</td><td>${escH(p.metodo||'-')}</td><td>${prettyDate(p.fecha)}</td><td><div class="td-actions"><button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('pagos','${p.id}')">${delIcon}</button></div></td></tr>`).join('');
+  const printIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>';
+  tb.innerHTML=data.map(p=>`<tr><td><strong>${escH(p.nombre_paciente)}</strong></td><td style="color:var(--green);font-weight:700">${fmtMoney(p.monto)}</td><td>${escH(p.concepto||'-')}</td><td>${escH(p.metodo||'-')}</td><td>${prettyDate(p.fecha)}</td><td><div class="td-actions"><button class="btn-icon" title="Imprimir Ticket" onclick="imprimirTicketPago('${p.id}')" style="color:var(--gray-600)">${printIcon}</button><button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('pagos','${p.id}')">${delIcon}</button></div></td></tr>`).join('');
 }
 
 function renderGastos(){
@@ -1309,4 +1310,42 @@ function imprimirPresupuesto(id) {
     setTimeout(() => {
         document.body.classList.remove('printing-presupuesto');
     }, 1000);
+}
+
+function imprimirTicketPago(id) {
+    const p = DB.get('pagos').find(x => String(x.id) === String(id));
+    if (!p) {
+        console.error("Pago no encontrado con id:", id);
+        return;
+    }
+    
+    const dDate = document.getElementById('print-pago-fecha');
+    if (dDate) dDate.textContent = prettyDate(p.fecha);
+    
+    const dFolio = document.getElementById('print-pago-id');
+    if (dFolio) {
+        if (p.rowid) {
+            dFolio.textContent = String(p.rowid).padStart(4, '0');
+        } else {
+            dFolio.textContent = String(p.id).slice(-6).toUpperCase();
+        }
+    }
+
+    const dPac = document.getElementById('print-pago-paciente');
+    if (dPac) dPac.textContent = p.nombre_paciente;
+
+    const dConc = document.getElementById('print-pago-concepto');
+    if (dConc) dConc.textContent = p.concepto || 'Pago de tratamiento';
+
+    const dMet = document.getElementById('print-pago-metodo');
+    if (dMet) dMet.textContent = p.metodo || 'Efectivo';
+
+    const dMonto = document.getElementById('print-pago-monto');
+    if (dMonto) dMonto.textContent = fmtMoney(p.monto);
+    
+    document.body.classList.add('printing-pago');
+    window.print();
+    setTimeout(() => {
+        document.body.classList.remove('printing-pago');
+    }, 500);
 }

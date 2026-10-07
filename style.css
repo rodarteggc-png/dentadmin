@@ -356,6 +356,47 @@ body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:14px;color:v
     }
     #print-presupuesto { display: none; }
 
+    /* PRINT PAGO */
+    body.printing-pago #print-area,
+    body.printing-pago #print-corte,
+    body.printing-pago #print-presupuesto { display: none !important; }
+    
+    body.printing-pago #print-pago,
+    body.printing-pago #print-pago * { visibility: visible; }
+
+    body.printing-pago #print-pago {
+        display: block !important;
+        position: absolute;
+        left: 0; top: 0;
+        width: 100%;
+        padding: 40px;
+        background: #fff;
+        color: #000;
+        font-family: Arial, sans-serif;
+    }
+    #print-pago { display: none; }
+
+    /* PRINT REMISION */
+    body.printing-remision #print-area,
+    body.printing-remision #print-corte,
+    body.printing-remision #print-presupuesto,
+    body.printing-remision #print-pago { display: none !important; }
+    
+    body.printing-remision #print-remision,
+    body.printing-remision #print-remision * { visibility: visible; }
+
+    body.printing-remision #print-remision {
+        display: block !important;
+        position: absolute;
+        left: 0; top: 0;
+        width: 100%;
+        padding: 40px;
+        background: #fff;
+        color: #000;
+        font-family: Arial, sans-serif;
+    }
+    #print-remision { display: none; }
+
     
     .receta-header {
 

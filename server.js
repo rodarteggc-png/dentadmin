@@ -207,7 +207,7 @@ app.get('/api/:col', (req, res) => {
     const col = req.params.col;
     if (!collections.includes(col)) return res.status(400).json({ error: 'Colección no válida' });
     
-    db.all(`SELECT * FROM ${col}`, [], (err, rows) => {
+    db.all(`SELECT rowid, * FROM ${col}`, [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
@@ -218,7 +218,7 @@ app.get('/api/:col/:id', (req, res) => {
     const col = req.params.col;
     if (!collections.includes(col)) return res.status(400).json({ error: 'Colección no válida' });
 
-    db.get(`SELECT * FROM ${col} WHERE id = ?`, [req.params.id], (err, row) => {
+    db.get(`SELECT rowid, * FROM ${col} WHERE id = ?`, [req.params.id], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!row) return res.status(404).json({ error: 'No encontrado' });
         res.json(row);
