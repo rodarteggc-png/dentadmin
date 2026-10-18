@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -7,10 +8,11 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const multer = require('multer');
+const bcrypt = require('bcrypt');
 
 const app = express();
-const PORT = 3000;
-const SECRET_KEY = 'dentadmin_secret_super_seguro'; // En producción, usar variable de entorno
+const PORT = process.env.PORT || 3000;
+const SECRET_KEY = process.env.SECRET_KEY || 'dentadmin_secret_super_seguro';
 
 app.use(cors());
 app.use(express.json());
@@ -22,7 +24,7 @@ app.use('/uploads', express.static(path.join(dataPath, 'uploads')));
 const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
 
 // Colecciones válidas
-const collections = ['pacientes', 'citas', 'pagos', 'historia', 'presupuestos', 'gastos', 'inventario', 'tareas', 'odontogramas', 'archivos', 'recetas'];
+const collections = ['pacientes', 'citas', 'pagos', 'historia', 'presupuestos', 'gastos', 'inventario', 'tareas', 'odontogramas', 'archivos', 'recetas', 'usuarios', 'antecedentes', 'periodontogramas', 'ortodoncia', 'prestaciones', 'tratamientos_detalles', 'abonos_tratamientos', 'sillones', 'laboratorios_ordenes'];
 
 // Configuración de Multer (Almacenamiento de fotos)
 const uploadDir = path.join(dataPath, 'uploads');
@@ -41,12 +43,15 @@ const upload = multer({ storage: storage });
 // --- Login ---
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
-    db.get(`SELECT id, username, rol FROM usuarios WHERE username = ? AND password = ?`, [username, password], (err, user) => {
+    db.get(`SELECT id, username, password as hash, rol FROM usuarios WHERE username = ?`, [username], async (err, user) => {
         if (err) return res.status(500).json({ error: 'Error del servidor' });
         if (!user) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
         
+        const match = await bcrypt.compare(password, user.hash);
+        if (!match) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+        
         const token = jwt.sign({ id: user.id, username: user.username, rol: user.rol }, SECRET_KEY, { expiresIn: '12h' });
-        res.json({ success: true, token, user });
+        res.json({ success: true, token, user: { id: user.id, username: user.username, rol: user.rol } });
     });
 });
 
@@ -199,6 +204,80 @@ app.get('/api/bot-cita', (req, res) => {
 // --- Endpoints Genéricos CRUD ---
 // Aplicar middleware a todas las rutas bajo /api/ (excepto login)
 app.use('/api/:col', authenticateToken);
+
+// GET de usuarios (sin contraseña)
+app.get('/api/usuarios', authenticateToken, (req, res) => {
+    db.all(`SELECT id, username, rol FROM usuarios`, [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
+// POST (Crear usuario)
+app.post('/api/usuarios', authenticateToken, async (req, res) => {
+    try {
+        const { username, password, rol } = req.body;
+        if (!username || !password || !rol) {
+            return res.status(400).json({ error: 'Todos los campos son obligatorios (usuario, contraseña y rol)' });
+        }
+        if (password.length < 6) {
+            return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+        }
+
+        // Verificar si el nombre de usuario ya existe
+        db.get('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [username.trim()], async (errCheck, existing) => {
+            if (errCheck) return res.status(500).json({ error: errCheck.message });
+            if (existing) {
+                return res.status(400).json({ error: `El nombre de usuario "${username.trim()}" ya está registrado. Por favor elija otro.` });
+            }
+
+            const id = generateId();
+            const hash = await bcrypt.hash(password, 10);
+            db.run(`INSERT INTO usuarios (id, username, password, rol) VALUES (?, ?, ?, ?)`, [id, username.trim(), hash, rol], function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                res.json({ id, username: username.trim(), rol });
+            });
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// PUT (Actualizar usuario)
+app.put('/api/usuarios/:id', authenticateToken, async (req, res) => {
+    try {
+        const { username, password, rol } = req.body;
+        if (!username || !rol) {
+            return res.status(400).json({ error: 'Usuario y rol son obligatorios' });
+        }
+
+        // Verificar que no choque con otro usuario existente
+        db.get('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?) AND id != ?', [username.trim(), req.params.id], async (errCheck, existing) => {
+            if (errCheck) return res.status(500).json({ error: errCheck.message });
+            if (existing) {
+                return res.status(400).json({ error: `El nombre de usuario "${username.trim()}" ya está en uso por otra cuenta.` });
+            }
+
+            if (password && password.trim().length > 0) {
+                if (password.length < 6) {
+                    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+                }
+                const hash = await bcrypt.hash(password, 10);
+                db.run(`UPDATE usuarios SET username = ?, password = ?, rol = ? WHERE id = ?`, [username.trim(), hash, rol, req.params.id], function(err) {
+                    if (err) return res.status(500).json({ error: err.message });
+                    res.json({ success: true, id: req.params.id, username: username.trim(), rol });
+                });
+            } else {
+                db.run(`UPDATE usuarios SET username = ?, rol = ? WHERE id = ?`, [username.trim(), rol, req.params.id], function(err) {
+                    if (err) return res.status(500).json({ error: err.message });
+                    res.json({ success: true, id: req.params.id, username: username.trim(), rol });
+                });
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // --- Endpoints REST genéricos ---
 

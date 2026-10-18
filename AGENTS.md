@@ -19,10 +19,22 @@ Proveer una solución web en la nube para que clínicas y consultorios puedan ac
 
 ---
 
-## 🔑 3. ROLES Y PERMISOS
-* **Administrador:** Acceso completo a caja, configuración de doctores, precios de tratamientos e inventario.
-* **Odontólogo / Especialista:** Visualización y edición de odontograma, notas de evolución y recetas de sus pacientes asignados.
-* **Recepción / Asistente:** Control de citas, altas de pacientes y registro de pagos.
+## 🔑 3. ROLES Y MATRIZ DE PERMISOS
+* **Administrador (`administrador`):**
+  - **Alcance:** Control total sin restricciones.
+  - **Módulos:** Dashboard, Citas (Multi-Sillón), Pacientes, Historia Clínica, Odontograma FDI, Gabinete de Imágenes, Recetas, Presupuestos, Catálogo de Aranceles, Laboratorio Dental, Pagos / Caja, Gastos / Egresos, Inventario, Tareas CRM, Reportes Financieros y **Gestión de Usuarios / Roles**.
+* **Doctor(a) / Odontólogo(a) (`doctor`):**
+  - **Alcance:** Control clínico completo y presupuestal de sus pacientes.
+  - **Módulos Permitidos:** Dashboard, Citas, Pacientes, Historia Clínica / Odontograma, Gabinete, Recetas Médicas, Presupuestos, Catálogo de Aranceles, Laboratorio Dental (Órdenes de prótesis), Pagos y Tareas.
+  - **Módulos Restringidos:** Gastos operativos de la clínica, Inventario general, Reportes gerenciales y Gestión de Usuarios.
+* **Asistente Dental (`asistente`):**
+  - **Alcance:** Apoyo clínico, gabinete radiográfico y control de insumos y materiales.
+  - **Módulos Permitidos:** Dashboard, Citas, Pacientes, Historia Clínica (consulta), Gabinete, Inventario / Stock, Recepción de Laboratorio y Tareas.
+  - **Módulos Restringidos:** Gastos, Pagos/Corte de caja, Presupuestos, Reportes y Gestión de Usuarios.
+* **Recepción / Front-Desk (`recepcion`):**
+  - **Alcance:** Atención al paciente, agenda, cobro en caja y entrega de presupuestos.
+  - **Módulos Permitidos:** Dashboard, Citas (Multi-Sillón), Altas y búsqueda de Pacientes, Presupuestos, Cobro en Caja (Módulo Pagos y tickets), Recepción de paquetes de Laboratorio y CRM de Tareas.
+  - **Módulos Restringidos:** Historia clínica dental profunda, Gabinete, Recetas médicas, Gastos de clínica, Reportes avanzados y Usuarios.
 
 ---
 
@@ -30,3 +42,34 @@ Proveer una solución web en la nube para que clínicas y consultorios puedan ac
 * **SEGURIDAD PRIMERO:** Nunca almacenar contraseñas en texto plano; siempre pasar por el hash de `bcrypt`.
 * **VERIFICACIÓN DE TOKEN:** Todas las rutas protegidas del API deben validar el middleware de autenticación JWT.
 * **NO MEZCLAR CON `DentaAdmin_Full`:** Este proyecto NO usa Electron; corre como servicio web estándar ejecutable con `npm start` (`node server.js`).
+
+---
+
+## 🦷 5. MÓDULO CLÍNICO ESTILO DENTALINK (FDI + ARANCELES + PRESUPUESTO EN VIVO)
+* **Catálogo de Aranceles (`prestaciones`):** Procedimientos clínicos agrupados por especialidad con precios base editables y alcance (`cara`, `diente`, `boca_completa`). 17 prestaciones clínicas reales precargadas por defecto.
+* **Odontograma Interactivo Sincronizado:** Al hacer clic en una superficie/diente en el odontograma, se despliega el menú contextual estilo Dentalink con:
+  - Búsqueda y listado categorizado de aranceles con chips de precios.
+  - Opciones rápidas de diagnóstico: Ya Realizado / Preexistente (Azul), Corona Protésica (Oro), Diente Ausente (Cruz ✕) y Limpiar.
+* **Desglose de Tratamientos (`tratamientos_detalles`):** Cada procedimiento asignado a un diente se registra con `realizado: 0` (Planificado / Rojo) y se vincula en tiempo real a la tabla del **Plan de Tratamiento & Presupuesto en Vivo**.
+* **Acción 1-Clic de Realización Clínica:** Al presionar "✓ Realizar", el procedimiento pasa a `realizado: 1`, el diente cambia a Azul en el odontograma y se asienta automáticamente la nota en la Historia Clínica del paciente.
+
+---
+
+## 🚀 6. EXTENSIONES DENTALINK IMPLEMENTADAS (OPCIONES 1, 3 Y 4)
+* **Opción 1: Financiero Dental - Abonos Directos por Tratamiento / Pieza (`abonos_tratamientos`):**
+  - Cada tratamiento en el plan muestra: Costo Total, Ya Abonado, Saldo Pendiente y Badges de estado.
+  - Botón "💵 Abonar" abre modal dedicado para registrar pagos parciales o totales directos a ese procedimiento.
+  - Sincronización transparente con `pagos` para el corte de caja diario (`corte-neto`) sin descuadres.
+  - Actualización automática de `pagado` y `liquidado: 1` en `tratamientos_detalles`.
+* **Opción 3: Operatividad Clínica - Agenda Multi-Sillón Dental (`sillones` + `citas`):**
+  - 3 Unidades físicas precargadas: Sillón 1 Principal (`#3b82f6`), Sillón 2 Quirúrgico (`#10b981`), Sillón 3 Odonto/Orto (`#f59e0b`).
+  - Barra de pestañas en citas para filtrar la agenda por unidad física específica o vista global unificada.
+  - Los eventos en el calendario FullCalendar se identifican con prefijo `[S1]`, `[S2]`, `[S3]` y su color de sillón correspondiente.
+  - **Candado Anti-Sobrecupo:** Validación inteligente al agendar que alerta si un sillón físico ya tiene una cita ocupada en la misma fecha y hora.
+* **Opción 4: Laboratorio Protésico (`laboratorios_ordenes`):**
+  - Módulo completo en la barra lateral con 3 tarjetas de KPI (Órdenes Activas, Recibidas en Clínica y Costo Total Acumulado).
+  - Pestañas de filtrado: Todas, En Laboratorio / Proceso, Recibidas y Terminadas/Instaladas.
+  - Registro de órdenes protésicas con folio automático (`LAB-XXXXXX`), tipo de trabajo (Zirconia, E.max, Carillas, Guardas, etc.), técnico/laboratorio externo, guía de color/tono (A2, B1, etc.), fecha de envío y entrega estimada.
+  - Acciones rápidas de flujo de trabajo: "📦 Recibir" (registra recepción en clínica) y "🦷 Instalar" (asienta nota automática en evolución clínica del expediente del paciente).
+
+

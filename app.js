@@ -4,6 +4,20 @@
 ════════════════════════════════════════ */
 'use strict';
 
+let isDarkMode = localStorage.getItem('theme') === 'dark';
+if (isDarkMode) document.documentElement.setAttribute('data-theme', 'dark');
+
+window.toggleTheme = function() {
+    isDarkMode = !isDarkMode;
+    if (isDarkMode) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'light');
+    }
+};
+
 /* ─── 1. BASE DE DATOS ─── */
 /* ─── 1. BASE DE DATOS (Sincronizada con Backend Real) ─── */
 const DB = {
@@ -28,7 +42,7 @@ const DB = {
   async init() {
     if (!localStorage.getItem('token')) return; // No init si no hay login
     try {
-      const collections = ['pacientes', 'citas', 'pagos', 'historia', 'presupuestos', 'gastos', 'inventario', 'tareas', 'odontogramas', 'archivos', 'recetas'];
+      const collections = ['pacientes', 'citas', 'pagos', 'historia', 'presupuestos', 'gastos', 'inventario', 'tareas', 'odontogramas', 'archivos', 'recetas', 'usuarios', 'antecedentes', 'periodontogramas', 'ortodoncia', 'prestaciones', 'tratamientos_detalles', 'abonos_tratamientos', 'sillones', 'laboratorios_ordenes'];
       for (const col of collections) {
         const res = await fetch(`/api/${col}`, { headers: this.getHeaders() }).then(r => this.handleError(r));
         this.cache[col] = await res.json();
@@ -169,11 +183,67 @@ function checkAuth() {
     document.getElementById('sidebar-avatar').textContent = ini;
     document.getElementById('topbar-username').textContent = user.username;
     document.getElementById('topbar-avatar').textContent = ini;
+    
+    applyRoles(user);
   } else {
     loginScreen.style.display = 'flex';
     mainLayout.style.display = 'none';
     sidebar.style.display = 'none';
   }
+}
+
+const ROLES_PERMISSIONS = {
+  administrador: {
+    nombre: 'Administrador(a)',
+    descripcion: 'Acceso total y sin restricciones a todos los módulos clínicos, financieros, inventario, reportes y control de usuarios.',
+    secciones: ['dashboard', 'citas', 'pacientes', 'historia', 'gabinete', 'recetas', 'presupuestos', 'aranceles', 'laboratorio', 'pagos', 'gastos', 'inventario', 'tareas', 'reportes', 'usuarios']
+  },
+  doctor: {
+    nombre: 'Doctor(a) / Odontólogo(a)',
+    descripcion: 'Control clínico completo: agenda multi-sillón, expedientes, odontograma FDI, periodontograma, ortodoncia, gabinete de rayos X, recetas, presupuestos, aranceles, laboratorio dental y cobros.',
+    secciones: ['dashboard', 'citas', 'pacientes', 'historia', 'gabinete', 'recetas', 'presupuestos', 'aranceles', 'laboratorio', 'pagos', 'tareas']
+  },
+  asistente: {
+    nombre: 'Asistente Dental',
+    descripcion: 'Apoyo clínico y operativo: consulta de citas, visualización de expedientes y odontograma, gabinete radiográfico, control de inventario de insumos, recepción de órdenes de laboratorio y tareas asignadas.',
+    secciones: ['dashboard', 'citas', 'pacientes', 'historia', 'gabinete', 'inventario', 'laboratorio', 'tareas']
+  },
+  recepcion: {
+    nombre: 'Recepción / Caja',
+    descripcion: 'Atención y administración de pacientes: control de agenda de citas, alta y búsqueda de pacientes, entrega de presupuestos, cobro en caja de pagos y recepción de paquetes de laboratorio.',
+    secciones: ['dashboard', 'citas', 'pacientes', 'presupuestos', 'laboratorio', 'pagos', 'tareas']
+  }
+};
+
+function applyRoles(user) {
+    const rol = user.rol || 'recepcion';
+    const config = ROLES_PERMISSIONS[rol] || ROLES_PERMISSIONS['recepcion'];
+    const permitidas = config.secciones;
+
+    // Mostrar u ocultar cada elemento de navegación según las secciones permitidas del rol
+    document.querySelectorAll('.sidebar__nav .nav-item[data-section]').forEach(el => {
+        const sec = el.getAttribute('data-section');
+        if (sec === 'dashboard') {
+            el.style.display = 'flex';
+            return;
+        }
+        if (permitidas.includes(sec)) {
+            el.style.display = 'flex';
+        } else {
+            el.style.display = 'none';
+        }
+    });
+
+    // Control de la sección y divisor de Usuarios (estrictamente exclusivo de administrador)
+    const navDivAdmin = document.getElementById('nav-divider-admin');
+    const navItemUsuarios = document.getElementById('nav-item-usuarios');
+    if (rol === 'administrador') {
+        if (navDivAdmin) navDivAdmin.style.display = 'block';
+        if (navItemUsuarios) navItemUsuarios.style.display = 'flex';
+    } else {
+        if (navDivAdmin) navDivAdmin.style.display = 'none';
+        if (navItemUsuarios) navItemUsuarios.style.display = 'none';
+    }
 }
 
 /* ─── SEED (Movido al Backend) ─── */
@@ -245,7 +315,10 @@ function renderOdontograma(pacienteNombre) {
 }
 
 function handleDienteClick(e, diente) {
-  if (!currentPacienteOdonto) return;
+  if (!currentPacienteOdonto) {
+    showToast('Seleccione primero un paciente en la lista superior', 'warning');
+    return;
+  }
   // Cerrar menú anterior si existe
   const oldMenu = document.getElementById('odonto-menu');
   if (oldMenu) oldMenu.remove();
@@ -253,42 +326,351 @@ function handleDienteClick(e, diente) {
   const cara = e.target.getAttribute('data-cara');
   if (!cara) return; // Clic fuera del polígono
 
+  const caraNombres = {
+    'C': 'Oclusal / Incisal',
+    'T': 'Vestibular (Superior)',
+    'B': 'Lingual / Palatino (Inferior)',
+    'L': 'Mesial / Izquierda',
+    'R': 'Distal / Derecha'
+  };
+  const nombreCara = caraNombres[cara] || cara;
+
+  // Obtener prestaciones del catálogo
+  const prestaciones = DB.get('prestaciones');
+
+  // Construir categorías
+  const categoriasMap = {};
+  prestaciones.forEach(p => {
+    const cat = p.categoria || 'General';
+    if (!categoriasMap[cat]) categoriasMap[cat] = [];
+    categoriasMap[cat].push(p);
+  });
+
   const menu = document.createElement('div');
   menu.id = 'odonto-menu';
-  menu.className = 'odontograma-menu';
-  menu.style.left = `${e.pageX + 5}px`;
-  menu.style.top = `${e.pageY + 5}px`;
+  menu.className = 'odontograma-menu dentalink-popup';
+  
+  // Ajustar posición para que no se desborde en la ventana
+  let posX = e.pageX + 10;
+  let posY = e.pageY - 10;
+  if (posX + 330 > window.innerWidth) posX = window.innerWidth - 340;
+  if (posY + 420 > window.innerHeight + window.scrollY) posY = Math.max(10, window.innerHeight + window.scrollY - 430);
+  menu.style.left = `${posX}px`;
+  menu.style.top = `${posY}px`;
 
-  const opciones = [
-    { label: 'Marcar Caries', estado: 'caries', css: 'menu-caries' },
-    { label: 'Marcar Resina', estado: 'resina', css: 'menu-resina' },
-    { label: 'Marcar Corona', estado: 'corona', cara: 'C', css: 'menu-corona' },
-    { label: 'Diente Ausente', estado: 'ausente', cara: 'C', css: 'menu-ausente' },
-    { label: 'Limpiar Cara', estado: 'limpio' }
-  ];
-
-  opciones.forEach(op => {
-    const btn = document.createElement('button');
-    btn.className = op.css || '';
-    btn.textContent = op.label;
-    btn.onclick = () => {
-      saveOdontograma(diente, op.cara || cara, op.estado);
-      menu.remove();
-    };
-    menu.appendChild(btn);
+  let htmlPrestaciones = '';
+  Object.keys(categoriasMap).forEach(cat => {
+    htmlPrestaciones += `<div class="odonto-menu-category-title">${escH(cat)}</div>`;
+    categoriasMap[cat].forEach(p => {
+      htmlPrestaciones += `
+        <div class="odonto-menu-item" onclick="seleccionarPrestacionParaDiente(${diente}, '${cara}', '${p.id}')">
+          <span class="odonto-item-name">${escH(p.nombre)}</span>
+          <span class="odonto-item-price">$${Number(p.precio).toLocaleString()}</span>
+        </div>
+      `;
+    });
   });
+
+  menu.innerHTML = `
+    <div class="odonto-menu-header">
+      <div>
+        <div class="odonto-menu-title">Pieza #${diente}</div>
+        <div class="odonto-menu-subtitle">Cara: ${nombreCara}</div>
+      </div>
+      <button class="odonto-menu-close" onclick="document.getElementById('odonto-menu')?.remove()">&times;</button>
+    </div>
+
+    <div class="odonto-menu-quick-actions">
+      <button class="quick-btn quick-realizado" onclick="aplicarEstadoDirecto(${diente}, '${cara}', 'resina', 'Ya Realizado / Preexistente')">
+        <span class="quick-dot dot-blue"></span> Ya Realizado (Azul)
+      </button>
+      <button class="quick-btn quick-corona" onclick="aplicarEstadoDirecto(${diente}, 'C', 'corona', 'Corona / Prótesis')">
+        👑 Corona
+      </button>
+      <button class="quick-btn quick-ausente" onclick="aplicarEstadoDirecto(${diente}, 'C', 'ausente', 'Diente Ausente')">
+        ❌ Ausente
+      </button>
+      <button class="quick-btn quick-limpiar" onclick="aplicarEstadoDirecto(${diente}, '${cara}', 'limpio', 'Limpiar Superficie')">
+        🧹 Limpiar
+      </button>
+    </div>
+
+    <div class="odonto-menu-search">
+      <input type="text" placeholder="Buscar prestación o arancel..." id="odonto-search-prestacion" oninput="filtrarPrestacionesMenu(this.value)">
+    </div>
+
+    <div class="odonto-menu-list" id="odonto-prestaciones-container">
+      ${htmlPrestaciones}
+    </div>
+  `;
 
   document.body.appendChild(menu);
 
   // Cerrar menú al hacer clic fuera
   setTimeout(() => {
     document.addEventListener('click', function closeMenu(evt) {
-      if (!menu.contains(evt.target)) {
+      if (menu && !menu.contains(evt.target) && !e.target.contains(evt.target)) {
         menu.remove();
         document.removeEventListener('click', closeMenu);
       }
     });
-  }, 0);
+  }, 10);
+}
+
+function filtrarPrestacionesMenu(q) {
+  const val = (q || '').toLowerCase();
+  const items = document.querySelectorAll('#odonto-prestaciones-container .odonto-menu-item');
+  items.forEach(it => {
+    const text = it.textContent.toLowerCase();
+    it.style.display = text.includes(val) ? 'flex' : 'none';
+  });
+}
+
+function aplicarEstadoDirecto(diente, cara, estado, label) {
+  saveOdontograma(diente, cara, estado);
+  document.getElementById('odonto-menu')?.remove();
+  showToast(`Pieza #${diente}: ${label}`, 'info');
+}
+
+function seleccionarPrestacionParaDiente(diente, cara, prestacionId) {
+  const p = DB.get('prestaciones').find(x => x.id === prestacionId);
+  if (!p) return;
+
+  // 1. Marcar odontograma en rojo (planificado / hallazgo)
+  saveOdontograma(diente, cara, 'caries');
+
+  // 2. Registrar en desglose de tratamientos del presupuesto
+  DB.add('tratamientos_detalles', {
+    nombre_paciente: currentPacienteOdonto,
+    diente: String(diente),
+    cara: cara,
+    id_prestacion: p.id,
+    nombre_prestacion: p.nombre,
+    precio: p.precio,
+    descuento: 0,
+    total: p.precio,
+    realizado: 0,
+    pagado: 0,
+    liquidado: 0,
+    createdAt: new Date().toISOString()
+  });
+
+  document.getElementById('odonto-menu')?.remove();
+  showToast(`Agregado al plan: ${p.nombre} ($${p.precio})`, 'success');
+  setTimeout(() => {
+    loadOdontogramaPaciente();
+  }, 120);
+}
+
+function renderPlanTratamientoOdonto(paciente) {
+  const tbody = document.getElementById('plan-tratamiento-tbody');
+  const emptyMsg = document.getElementById('plan-tratamiento-empty');
+  const totalBadge = document.getElementById('odonto-total-badge');
+  if (!tbody) return;
+
+  const tratamientos = DB.get('tratamientos_detalles').filter(t => t.nombre_paciente === paciente);
+  
+  if (tratamientos.length === 0) {
+    tbody.innerHTML = '';
+    if (emptyMsg) emptyMsg.style.display = 'block';
+    if (totalBadge) totalBadge.textContent = 'Total: $0';
+    return;
+  }
+
+  if (emptyMsg) emptyMsg.style.display = 'none';
+
+  let totalMonto = 0;
+  let totalPagado = 0;
+  let totalSaldo = 0;
+
+  tbody.innerHTML = tratamientos.map(item => {
+    const itemTotal = Number(item.total || item.precio || 0);
+    const itemPagado = Number(item.pagado || 0);
+    const itemSaldo = Math.max(0, itemTotal - itemPagado);
+    totalMonto += itemTotal;
+    totalPagado += itemPagado;
+    totalSaldo += itemSaldo;
+
+    const isRealizado = Number(item.realizado) === 1;
+    const badgeEstado = isRealizado
+      ? '<span class="badge badge-blue">✓ Realizado</span>'
+      : '<span class="badge badge-red">⏳ Planificado</span>';
+    
+    const saldoBadge = itemSaldo <= 0
+      ? '<span class="badge" style="background:#dcfce7; color:#15803d; font-weight:700;">✓ Pagado</span>'
+      : `<span class="badge" style="background:#fee2e2; color:#b91c1c; font-weight:700;">$${itemSaldo.toLocaleString()}</span>`;
+
+    const caraLabel = item.cara === 'C' ? 'Oclusal' : 
+                     item.cara === 'T' ? 'Vestibular' :
+                     item.cara === 'B' ? 'Lingual/Palatino' :
+                     item.cara === 'L' ? 'Mesial' :
+                     item.cara === 'R' ? 'Distal' : (item.cara || 'Pieza');
+
+    return `
+      <tr>
+        <td><strong>#${escH(item.diente || '-')}</strong></td>
+        <td><small style="color:var(--gray-600);">${escH(caraLabel)}</small></td>
+        <td>${escH(item.nombre_prestacion || 'Tratamiento')}</td>
+        <td><strong>$${itemTotal.toLocaleString()}</strong></td>
+        <td><strong style="color:var(--blue);">$${itemPagado.toLocaleString()}</strong></td>
+        <td>${saldoBadge}</td>
+        <td>${badgeEstado}</td>
+        <td style="white-space:nowrap;">
+          ${itemSaldo > 0 ? `<button class="btn-primary" style="padding: 3px 8px; font-size: 11px; margin-right: 4px; background:#10b981; border-color:#059669;" onclick="abrirModalAbonoTratamiento('${item.id}')">💵 Abonar</button>` : ''}
+          ${!isRealizado ? `<button class="btn-primary" style="padding: 3px 8px; font-size: 11px; margin-right: 4px;" onclick="marcarTratamientoRealizado('${item.id}')">✓ Realizar</button>` : ''}
+          <button class="btn-secondary" style="padding: 3px 8px; font-size: 11px; color: var(--red);" onclick="eliminarTratamientoDetalle('${item.id}')">🗑️</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  if (totalBadge) {
+    totalBadge.innerHTML = `Presupuesto: <strong>$${totalMonto.toLocaleString()}</strong> | Pagado: <strong style="color:#059669;">$${totalPagado.toLocaleString()}</strong> | Saldo: <strong style="color:#dc2626;">$${totalSaldo.toLocaleString()}</strong>`;
+  }
+}
+
+function abrirModalAbonoTratamiento(id) {
+  const item = DB.get('tratamientos_detalles').find(t => t.id === id);
+  if (!item) return;
+
+  const itemTotal = Number(item.total || item.precio || 0);
+  const itemPagado = Number(item.pagado || 0);
+  const itemSaldo = Math.max(0, itemTotal - itemPagado);
+
+  const caraNombres = { 'C': 'Oclusal', 'T': 'Vestibular', 'B': 'Lingual/Palatino', 'L': 'Mesial', 'R': 'Distal' };
+  const caraStr = caraNombres[item.cara] || item.cara || 'Pieza';
+
+  document.getElementById('abono-tratamiento-id').value = item.id;
+  document.getElementById('abono-info-pieza').textContent = `Pieza #${item.diente} (${caraStr})`;
+  document.getElementById('abono-info-prestacion').textContent = item.nombre_prestacion;
+  document.getElementById('abono-info-costo').textContent = `$${itemTotal.toLocaleString()}`;
+  document.getElementById('abono-info-pagado').textContent = `$${itemPagado.toLocaleString()}`;
+  document.getElementById('abono-info-saldo').textContent = `$${itemSaldo.toLocaleString()}`;
+
+  document.getElementById('abono-monto').value = itemSaldo;
+  document.getElementById('abono-monto').max = itemSaldo;
+  document.getElementById('abono-fecha').value = todayStr();
+  document.getElementById('abono-notas').value = '';
+
+  document.getElementById('modal-abono-tratamiento')?.removeAttribute('hidden');
+}
+
+function guardarAbonoTratamiento(e) {
+  e.preventDefault();
+  const id = document.getElementById('abono-tratamiento-id').value;
+  const item = DB.get('tratamientos_detalles').find(t => t.id === id);
+  if (!item) return;
+
+  const monto = parseFloat(document.getElementById('abono-monto').value) || 0;
+  const metodo = document.getElementById('abono-metodo').value;
+  const doctor = document.getElementById('abono-doctor').value;
+  const fecha = document.getElementById('abono-fecha').value || todayStr();
+  const notas = document.getElementById('abono-notas').value;
+
+  if (monto <= 0) return showToast('El monto debe ser mayor a 0', 'error');
+
+  const itemTotal = Number(item.total || item.precio || 0);
+  const pagadoActual = Number(item.pagado || 0);
+  const nuevoPagado = pagadoActual + monto;
+  const estaLiquidado = nuevoPagado >= itemTotal ? 1 : 0;
+
+  // 1. Actualizar tratamientos_detalles
+  DB.update('tratamientos_detalles', item.id, {
+    pagado: nuevoPagado,
+    liquidado: estaLiquidado
+  });
+
+  // 2. Registrar en abonos_tratamientos (Opción 1 - Dentalink)
+  DB.add('abonos_tratamientos', {
+    id_tratamiento_detalle: item.id,
+    nombre_paciente: item.nombre_paciente,
+    diente: item.diente,
+    cara: item.cara,
+    prestacion_nombre: item.nombre_prestacion,
+    monto: monto,
+    metodo: metodo,
+    doctor: doctor,
+    fecha: fecha,
+    notas: notas,
+    createdAt: new Date().toISOString()
+  });
+
+  // 3. Registrar en pagos generales para caja e ingresos del día
+  DB.add('pagos', {
+    nombre_paciente: item.nombre_paciente,
+    monto: monto,
+    concepto: `Abono Pieza #${item.diente}: ${item.nombre_prestacion}`,
+    metodo: metodo,
+    doctor: doctor,
+    fecha: fecha
+  });
+
+  closeModal('abono-tratamiento');
+  showToast(`Abono de $${monto.toLocaleString()} registrado con éxito`, 'success');
+  setTimeout(() => {
+    loadOdontogramaPaciente();
+  }, 120);
+}
+
+function marcarTratamientoRealizado(id) {
+  const item = DB.get('tratamientos_detalles').find(t => t.id === id);
+  if (!item) return;
+
+  // 1. Actualizar tratamientos_detalles a realizado = 1
+  DB.update('tratamientos_detalles', id, {
+    realizado: 1,
+    fecha_realizado: todayStr()
+  });
+
+  // 2. Actualizar el odontograma para que se pinte en azul (resina / realizado)
+  if (item.diente && item.cara) {
+    const records = DB.get('odontogramas');
+    const odontoRecord = records.find(o => o.nombre_paciente === item.nombre_paciente && String(o.diente) === String(item.diente) && o.cara === item.cara);
+    if (odontoRecord) {
+      DB.update('odontogramas', odontoRecord.id, { estado: 'resina' }); // 'resina' pinta azul en CSS
+    } else {
+      DB.add('odontogramas', {
+        nombre_paciente: item.nombre_paciente,
+        diente: String(item.diente),
+        cara: item.cara,
+        estado: 'resina'
+      });
+    }
+  }
+
+  // 3. Registrar automáticamente nota en evolución clínica (historia)
+  DB.add('historia', {
+    nombre_paciente: item.nombre_paciente,
+    fecha: todayStr(),
+    diente_zona: `Pieza #${item.diente} (${item.cara || 'General'})`,
+    tratamiento: item.nombre_prestacion,
+    descripcion: `Tratamiento realizado exitosamente. Costo: $${item.total || item.precio}`
+  });
+
+  showToast(`Tratamiento marcado como realizado: ${item.nombre_prestacion}`, 'success');
+  setTimeout(() => {
+    loadOdontogramaPaciente();
+  }, 120);
+}
+
+function eliminarTratamientoDetalle(id) {
+  const item = DB.get('tratamientos_detalles').find(t => t.id === id);
+  if (!item) return;
+  
+  // Limpiar el odontograma si corresponde
+  if (item.diente && item.cara) {
+    const records = DB.get('odontogramas');
+    const odontoRecord = records.find(o => o.nombre_paciente === item.nombre_paciente && String(o.diente) === String(item.diente) && o.cara === item.cara);
+    if (odontoRecord) {
+      DB.remove('odontogramas', odontoRecord.id);
+    }
+  }
+
+  DB.remove('tratamientos_detalles', id);
+  showToast('Procedimiento eliminado del plan', 'info');
+  setTimeout(() => {
+    loadOdontogramaPaciente();
+  }, 120);
 }
 
 function saveOdontograma(diente, cara, estado) {
@@ -303,12 +685,11 @@ function saveOdontograma(diente, cara, estado) {
     if (existente) {
       DB.update('odontogramas', existente.id, { estado });
     } else {
-      DB.add('odontogramas', { nombre_paciente: currentPacienteOdonto, diente, cara, estado });
+      DB.add('odontogramas', { nombre_paciente: currentPacienteOdonto, diente: String(diente), cara, estado });
     }
   }
   
-  // Como las funciones de DB devuelven optimísticamente, podemos re-renderizar
-  setTimeout(() => renderOdontograma(currentPacienteOdonto), 100); // Pequeño timeout por si es asíncrono
+  setTimeout(() => renderOdontograma(currentPacienteOdonto), 100);
 }
 
 function loadOdontogramaPaciente() {
@@ -317,24 +698,347 @@ function loadOdontogramaPaciente() {
   currentPacienteOdonto = paciente;
   
   if (paciente) {
-    document.getElementById('odontograma-layout').style.display = 'grid';
+    document.getElementById('odontograma-layout').style.display = 'flex';
     document.getElementById('historia-global-container').style.display = 'none';
     renderOdontograma(paciente);
+    renderPlanTratamientoOdonto(paciente);
+    
     // Filtrar tabla historia a este paciente
     const trs = document.getElementById('historia-paciente-tbody');
     trs.innerHTML = '';
     DB.get('historia').filter(h => h.nombre_paciente === paciente).reverse().forEach(item => {
       trs.innerHTML += `<tr><td>${item.fecha}</td><td>${escH(item.diente_zona||'-')}</td><td>${escH(item.tratamiento)}</td><td>${escH(item.descripcion)}</td><td><button class="btn-secondary" onclick="DB.remove('historia','${item.id}');loadOdontogramaPaciente()">Eliminar</button></td></tr>`;
     });
+    
+    // Cargar antecedentes
+    loadAntecedentes(paciente);
+    // Renderizar periodontograma
+    renderPeriodontograma(paciente);
+    // Renderizar ortodoncia
+    renderOrtodoncia(paciente);
+
   } else {
     document.getElementById('odontograma-layout').style.display = 'none';
     document.getElementById('historia-global-container').style.display = 'block';
   }
 }
 
+function switchHistoriaTab(tabId, btnElement) {
+  // Manejo de botones (UI)
+  const tabs = btnElement.parentElement.querySelectorAll('.filter-tab');
+  tabs.forEach(t => t.classList.remove('filter-tab--active'));
+  btnElement.classList.add('filter-tab--active');
+
+  // Mostrar el tab correspondiente
+  document.getElementById('hist-tab-odontograma').style.display = 'none';
+  document.getElementById('hist-tab-antecedentes').style.display = 'none';
+  document.getElementById('hist-tab-periodontograma').style.display = 'none';
+  document.getElementById('hist-tab-ortodoncia').style.display = 'none';
+
+  if (tabId === 'odontograma') {
+      document.getElementById('hist-tab-odontograma').style.display = 'flex';
+  } else {
+      document.getElementById('hist-tab-' + tabId).style.display = 'block';
+  }
+}
+
+function loadAntecedentes(paciente) {
+  const data = DB.get('antecedentes').find(a => a.nombre_paciente === paciente);
+  document.getElementById('ant-alergias').value = data ? data.alergias : '';
+  document.getElementById('ant-enfermedades').value = data ? data.enfermedades : '';
+  document.getElementById('ant-medicamentos').value = data ? data.medicamentos_actuales : '';
+  document.getElementById('ant-alertas').value = data ? data.alertas_medicas : '';
+}
+
+function saveAntecedentes() {
+  if (!currentPacienteOdonto) return showToast('Seleccione un paciente', 'error');
+  const alergias = document.getElementById('ant-alergias').value;
+  const enfermedades = document.getElementById('ant-enfermedades').value;
+  const medicamentos = document.getElementById('ant-medicamentos').value;
+  const alertas = document.getElementById('ant-alertas').value;
+  
+  const existente = DB.get('antecedentes').find(a => a.nombre_paciente === currentPacienteOdonto);
+  if (existente) {
+      DB.update('antecedentes', existente.id, { alergias, enfermedades, medicamentos_actuales: medicamentos, alertas_medicas: alertas });
+  } else {
+      DB.add('antecedentes', { nombre_paciente: currentPacienteOdonto, alergias, enfermedades, medicamentos_actuales: medicamentos, alertas_medicas: alertas });
+  }
+  showToast('Antecedentes guardados', 'success');
+}
+
+function renderOrtodoncia(paciente) {
+  const data = DB.get('ortodoncia').filter(o => o.nombre_paciente === paciente);
+  data.sort((a,b) => b.fecha.localeCompare(a.fecha)); // Most recent first
+  const tb = document.getElementById('ortodoncia-tbody');
+  if(!tb) return;
+  if (!data.length) {
+      tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--gray-400);">Sin registros de ortodoncia</td></tr>';
+      return;
+  }
+  tb.innerHTML = data.map(o => `
+      <tr>
+          <td>${prettyDate(o.fecha)}</td>
+          <td>${escH(o.aparatologia || '-')}</td>
+          <td>${escH(o.ligas || '-')}</td>
+          <td>${escH(o.higiene || '-')}</td>
+          <td>${escH(o.notas || '-')}</td>
+          <td><div class="td-actions"><button class="btn-icon" title="Editar" onclick="openModal('ortodoncia', DB.find('ortodoncia', '${o.id}'))">${editIcon}</button><button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('ortodoncia', '${o.id}')">${delIcon}</button></div></td>
+      </tr>
+  `).join('');
+}
+
+function renderPeriodontograma(paciente) {
+    const tb = document.getElementById('tb-periodontograma');
+    if (!tb) return;
+    const data = DB.get('periodontogramas').filter(p => p.nombre_paciente === paciente);
+    
+    // Dientes Superiores (18-11, 21-28)
+    const superiores = [18,17,16,15,14,13,12,11, 21,22,23,24,25,26,27,28];
+    // Dientes Inferiores (48-41, 31-38)
+    const inferiores = [48,47,46,45,44,43,42,41, 31,32,33,34,35,36,37,38];
+
+    let html = `
+      <tr>
+        <th style="background:#f9fafb; width:120px;">Diente</th>
+        ${superiores.map(d => `<th style="background:#eff6ff;">${d}</th>`).join('')}
+      </tr>
+      <tr>
+        <td style="background:#f9fafb; font-weight:bold;">Sondaje V/P</td>
+        ${superiores.map(d => {
+            const r = data.find(p => String(p.diente) === String(d));
+            return `<td>${r ? r.sondaje : '-'}</td>`;
+        }).join('')}
+      </tr>
+      <tr>
+        <td style="background:#f9fafb; font-weight:bold;">Sangrado / Mov.</td>
+        ${superiores.map(d => {
+            const r = data.find(p => String(p.diente) === String(d));
+            const m = r ? r.movilidad : '0';
+            const bg = r && r.sangrado ? '#fee2e2' : 'transparent';
+            const color = r && r.sangrado ? '#b91c1c' : '#374151';
+            return `<td style="background:${bg}; color:${color}; font-weight:bold;">${m > 0 ? `M${m}` : ''}</td>`;
+        }).join('')}
+      </tr>
+      <tr style="height:20px;"></tr>
+      <tr>
+        <th style="background:#f9fafb; width:120px;">Diente</th>
+        ${inferiores.map(d => `<th style="background:#eff6ff;">${d}</th>`).join('')}
+      </tr>
+      <tr>
+        <td style="background:#f9fafb; font-weight:bold;">Sondaje V/L</td>
+        ${inferiores.map(d => {
+            const r = data.find(p => String(p.diente) === String(d));
+            return `<td>${r ? r.sondaje : '-'}</td>`;
+        }).join('')}
+      </tr>
+      <tr>
+        <td style="background:#f9fafb; font-weight:bold;">Sangrado / Mov.</td>
+        ${inferiores.map(d => {
+            const r = data.find(p => String(p.diente) === String(d));
+            const m = r ? r.movilidad : '0';
+            const bg = r && r.sangrado ? '#fee2e2' : 'transparent';
+            const color = r && r.sangrado ? '#b91c1c' : '#374151';
+            return `<td style="background:${bg}; color:${color}; font-weight:bold;">${m > 0 ? `M${m}` : ''}</td>`;
+        }).join('')}
+      </tr>
+    `;
+    tb.innerHTML = html;
+}
+
+function savePeriodontograma(e) {
+    e.preventDefault();
+    if (!currentPacienteOdonto) return showToast('Seleccione un paciente en la Historia Clínica primero', 'error');
+    
+    const diente = document.getElementById('perio-diente').value;
+    const sondaje = document.getElementById('perio-sondaje').value;
+    const sangrado = document.getElementById('perio-sangrado').checked;
+    const movilidad = document.getElementById('perio-movilidad').value;
+    
+    const existente = DB.get('periodontogramas').find(p => p.nombre_paciente === currentPacienteOdonto && String(p.diente) === String(diente));
+    
+    if (existente) {
+        DB.update('periodontogramas', existente.id, { sondaje, sangrado, movilidad, fecha: todayStr() });
+    } else {
+        DB.add('periodontogramas', { nombre_paciente: currentPacienteOdonto, diente, sondaje, sangrado, movilidad, fecha: todayStr() });
+    }
+    
+    closeModal('periodontograma');
+    showToast('Sondaje guardado', 'success');
+    renderPeriodontograma(currentPacienteOdonto);
+}
+
 
 /* ─── GABINETE LOGIC ─── */
 let currentGabinetePaciente = null;
+
+function actualizarInfoRolModal(rol) {
+  const descEl = document.getElementById('u-rol-desc');
+  if (!descEl) return;
+  const descripciones = {
+    administrador: '👑 <strong>Administrador(a):</strong> Acceso total y sin restricciones a todos los módulos clínicos, financieros (caja, pagos y gastos), aranceles, inventario, reportes y control de usuarios.',
+    doctor: '🩺 <strong>Doctor(a) / Odontólogo(a):</strong> Control clínico completo: agenda multi-sillón, expedientes, odontograma FDI, periodontograma, ortodoncia, gabinete de rayos X, recetas, presupuestos, aranceles, laboratorio dental y cobros.',
+    asistente: '🧤 <strong>Asistente Dental:</strong> Apoyo clínico y operativo: consulta de citas, visualización de expedientes y odontograma, gabinete radiográfico, control de inventario de insumos, recepción de órdenes de laboratorio y tareas asignadas.',
+    recepcion: '📋 <strong>Recepción / Caja:</strong> Atención y administración de pacientes: control de agenda de citas, alta y búsqueda de pacientes, entrega de presupuestos, cobro en caja de pagos y recepción de paquetes de laboratorio.'
+  };
+  descEl.innerHTML = descripciones[rol] || descripciones['doctor'];
+}
+
+function renderUsuarios() {
+  const t = document.getElementById('tb-usuarios');
+  if (!t) return;
+  const users = DB.get('usuarios');
+  if (users.length === 0) {
+    t.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:15px; color:var(--gray-400);">No hay usuarios registrados</td></tr>';
+    return;
+  }
+
+  const roleMeta = {
+    administrador: {
+      badge: '<span class="badge" style="background:#fee2e2; color:#b91c1c; font-weight:700;">Administrador(a)</span>',
+      alcance: 'Acceso total y configuración de todo el sistema'
+    },
+    doctor: {
+      badge: '<span class="badge" style="background:#dbeafe; color:#1e40af; font-weight:700;">Doctor(a)</span>',
+      alcance: 'Clínica, Odontograma FDI, Citas, Recetas, Presupuestos, Rayos X y Lab'
+    },
+    asistente: {
+      badge: '<span class="badge" style="background:#fef3c7; color:#92400e; font-weight:700;">Asistente Dental</span>',
+      alcance: 'Citas, Odontograma, Gabinete, Insumos/Inventario y Recepción de Lab'
+    },
+    recepcion: {
+      badge: '<span class="badge" style="background:#dcfce7; color:#15803d; font-weight:700;">Recepción / Caja</span>',
+      alcance: 'Agenda de Citas, Alta de Pacientes, Cobros en Caja, Presupuestos y Lab'
+    }
+  };
+
+  t.innerHTML = users.map(u => {
+    const meta = roleMeta[u.rol] || {
+      badge: `<span class="badge" style="background:var(--gray-200); color:var(--gray-800);">${escH(u.rol)}</span>`,
+      alcance: 'Acceso general'
+    };
+
+    return `
+      <tr>
+        <td><strong>${escH(u.username)}</strong> ${u.username === 'admin' ? '<small style="color:var(--gray-500);">(Principal)</small>' : ''}</td>
+        <td>${meta.badge}</td>
+        <td><small style="color:var(--gray-600);">${meta.alcance}</small></td>
+        <td>
+          <button class="btn-icon" style="color:var(--blue); margin-right:4px;" onclick="editUsuario('${u.id}')" title="Editar Rol o Contraseña">✏️</button>
+          ${u.username === 'admin' ? '' : `<button class="btn-icon" style="color:var(--red);" onclick="eliminarUsuario('${u.id}')" title="Eliminar Usuario">${delIcon}</button>`}
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function editUsuario(id) {
+    const u = DB.get('usuarios').find(x => x.id === id);
+    if (!u) return;
+    document.getElementById('u-username').value = u.username;
+    document.getElementById('u-password').value = '';
+    document.getElementById('u-password').required = false; // Contraseña opcional al editar
+    const helpEl = document.getElementById('u-password-help');
+    if (helpEl) helpEl.style.display = 'block';
+    document.getElementById('u-rol').value = u.rol;
+    document.getElementById('form-usuario').dataset.editId = id;
+    const titleEl = document.getElementById('modal-usuario-title');
+    if (titleEl) titleEl.textContent = `Editar Usuario: ${u.username}`;
+    actualizarInfoRolModal(u.rol);
+    document.getElementById('modal-usuario').removeAttribute('hidden');
+}
+
+async function saveUsuario(e) {
+  e.preventDefault();
+  const form = document.getElementById('form-usuario');
+  const editId = form.dataset.editId;
+  const username = document.getElementById('u-username').value.trim();
+  const password = document.getElementById('u-password').value;
+  const rol = document.getElementById('u-rol').value;
+
+  if (!username) return showToast('El nombre de usuario es obligatorio', 'error');
+  if (!editId && (!password || password.length < 6)) {
+    return showToast('La contraseña debe tener al menos 6 caracteres', 'error');
+  }
+
+  const payload = { username, rol };
+  if (password && password.trim().length > 0) payload.password = password;
+
+  try {
+    let res;
+    if (editId) {
+      res = await fetch(`/api/usuarios/${editId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + localStorage.getItem('token')
+        },
+        body: JSON.stringify(payload)
+      });
+    } else {
+      res = await fetch('/api/usuarios', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + localStorage.getItem('token')
+        },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    const data = await res.json();
+    if (!res.ok) {
+      return showToast(data.error || 'Error al guardar usuario', 'error');
+    }
+
+    // Actualizar caché de usuarios desde el backend
+    const refreshRes = await fetch('/api/usuarios', {
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+    });
+    if (refreshRes.ok) {
+      DB.cache.usuarios = await refreshRes.json();
+    }
+
+    closeModal('usuario');
+    renderUsuarios();
+    showToast(editId ? `Usuario "${username}" actualizado` : `Usuario "${username}" creado exitosamente`, 'success');
+  } catch (err) {
+    showToast('Error de conexión al guardar el usuario', 'error');
+  }
+}
+
+async function eliminarUsuario(id) {
+  const u = DB.get('usuarios').find(x => x.id === id);
+  if (!u) return;
+  if (u.username === 'admin') {
+    return showToast('No es posible eliminar el usuario administrador principal', 'warning');
+  }
+  if (!confirm(`¿Estás seguro de que deseas eliminar la cuenta de "${u.username}"?`)) return;
+
+  try {
+    const res = await fetch(`/api/usuarios/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+    });
+    if (res.ok) {
+      DB.cache.usuarios = (DB.cache.usuarios || []).filter(x => x.id !== id);
+      renderUsuarios();
+      showToast(`Usuario "${u.username}" eliminado del sistema`, 'info');
+    } else {
+      showToast('Error al eliminar usuario', 'error');
+    }
+  } catch (e) {
+    showToast('Error de conexión al eliminar usuario', 'error');
+  }
+}
+
+// Aliases globales de compatibilidad
+window.saveData = (e, col) => {
+  if (col === 'usuarios') return saveUsuario(e);
+};
+window.deleteData = (col, id) => {
+  if (col === 'usuarios') return eliminarUsuario(id);
+  quickDelete(col, id);
+};
 
 function renderGabinete() {
   const select = document.getElementById('gabinete-paciente-select');
@@ -516,16 +1220,25 @@ function reimprimirReceta(id) {
 }
 
 /* ─── 4. NAVEGACIÓN Y RENDER ─── */
-const SECTIONS=['dashboard','citas','pacientes','historia','gabinete','recetas','presupuestos','pagos','gastos','inventario','tareas','reportes'];
-const TITLES={dashboard:'Dashboard',citas:'Citas',pacientes:'Pacientes',historia:'Historia Clínica',gabinete:'Gabinete',recetas:'Recetas Médicas',presupuestos:'Presupuestos',pagos:'Pagos',gastos:'Gastos',inventario:'Inventario',tareas:'Tareas / CRM',reportes:'Reportes'};
+const SECTIONS=['dashboard','citas','pacientes','historia','gabinete','recetas','presupuestos','aranceles','laboratorio','pagos','gastos','inventario','tareas','reportes','usuarios'];
+const TITLES={dashboard:'Dashboard',citas:'Citas',pacientes:'Pacientes',historia:'Historia Clínica',gabinete:'Gabinete',recetas:'Recetas Médicas',presupuestos:'Presupuestos',aranceles:'Catálogo de Aranceles',laboratorio:'Laboratorio Dental',pagos:'Pagos',gastos:'Gastos',inventario:'Inventario',tareas:'Tareas / CRM',reportes:'Reportes',usuarios:'Usuarios y Roles'};
 const tableFilters={citas:'all',presupuestos:'all',tareas:'all'};
 
 function navigateTo(s){
   if(!SECTIONS.includes(s))return;
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const rol = user.rol || 'recepcion';
+  const config = ROLES_PERMISSIONS[rol] || ROLES_PERMISSIONS['recepcion'];
+
+  if (s !== 'dashboard' && !config.secciones.includes(s)) {
+    showToast(`Tu rol de "${config.nombre}" no tiene permisos para acceder a ${TITLES[s] || s}`, 'warning');
+    return;
+  }
+
   SECTIONS.forEach(x=>{const el=document.getElementById('section-'+x);if(el)el.classList.toggle('section--active',x===s)});
   document.querySelectorAll('.nav-item').forEach(l=>l.classList.toggle('nav-item--active',l.dataset.section===s));
   document.getElementById('topbar-title').textContent=TITLES[s]||s;
-  const renders={dashboard:refreshDashboard,citas:renderCitas,pacientes:renderPacientes,historia:renderHistoria,presupuestos:renderPresupuestos,pagos:renderPagos,gastos:renderGastos,inventario:renderInventario,tareas:renderTareas,reportes:renderReportes,gabinete:renderGabinete,recetas:renderRecetas};
+  const renders={dashboard:refreshDashboard,citas:renderCitas,pacientes:renderPacientes,historia:renderHistoria,presupuestos:renderPresupuestos,aranceles:renderAranceles,laboratorio:renderLaboratorio,pagos:renderPagos,gastos:renderGastos,inventario:renderInventario,tareas:renderTareas,reportes:renderReportes,gabinete:renderGabinete,recetas:renderRecetas,usuarios:renderUsuarios};
   renders[s]?.();
   document.getElementById('sidebar')?.classList.remove('open');
 }
@@ -574,10 +1287,37 @@ const delIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 const waIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
 const checkIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
 
+/* ─── 5. MULTI-SILLÓN Y AGENDA (OPCIÓN 3 - DENTALINK) ─── */
+let currentSillonFilter = 'all';
+
+function filterCitasSillon(btn, sillonId) {
+  currentSillonFilter = sillonId;
+  if (btn) {
+    btn.closest('.filter-tabs').querySelectorAll('.filter-tab').forEach(t => t.classList.remove('filter-tab--active'));
+    btn.classList.add('filter-tab--active');
+  }
+  renderCitas();
+}
+
 function renderCitas() {
   let data = DB.get('citas');
   const q = (document.getElementById('search-citas')?.value || '').toLowerCase();
   if (q) data = data.filter(c => c.nombre_paciente.toLowerCase().includes(q) || (c.motivo || '').toLowerCase().includes(q));
+
+  // Filtrado por sillón físico
+  if (currentSillonFilter !== 'all') {
+    data = data.filter(c => (c.id_sillon || 'sillon_1') === currentSillonFilter);
+  }
+
+  // Mapa de colores y nombres de sillones
+  const sillonesMap = {
+    'sillon_1': { nombre: 'Sillón 1 (Principal)', color: '#3b82f6' },
+    'sillon_2': { nombre: 'Sillón 2 (Quirúrgico)', color: '#10b981' },
+    'sillon_3': { nombre: 'Sillón 3 (Odonto / Orto)', color: '#f59e0b' }
+  };
+  (DB.get('sillones') || []).forEach(s => {
+    sillonesMap[s.id] = { nombre: s.nombre, color: s.color || '#3b82f6' };
+  });
 
   // Initialize Mini Calendar
   if (!window.miniCalendar) {
@@ -640,7 +1380,7 @@ function renderCitas() {
           if (info.dateStr.includes('T')) {
             time = info.dateStr.split('T')[1].substring(0, 5);
           }
-          openModal('cita', { fecha: info.dateStr.split('T')[0], hora: time });
+          openModal('cita', { fecha: info.dateStr.split('T')[0], hora: time, id_sillon: currentSillonFilter !== 'all' ? currentSillonFilter : 'sillon_1' });
         },
         datesSet: function(info) {
           // Sync mini calendar to main calendar's view when navigating prev/next
@@ -655,12 +1395,15 @@ function renderCitas() {
 
   if (window.calendar) {
     const evts = data.map(c => {
-      let color = '#3b82f6'; // blue (pendiente)
-      if (c.estado === 'completada') color = '#10b981'; // green
-      if (c.estado === 'cancelada') color = '#ef4444'; // red
-      
-      let titleStr = c.nombre_paciente;
+      const sInfo = sillonesMap[c.id_sillon || 'sillon_1'] || { nombre: 'Sillón 1', color: '#3b82f6' };
+      let color = sInfo.color;
+      if (c.estado === 'completada') color = '#059669'; // verde esmeralda
+      if (c.estado === 'cancelada') color = '#ef4444'; // rojo
+
+      const sillShort = sInfo.nombre.includes('Sillón 1') ? 'S1' : sInfo.nombre.includes('Sillón 2') ? 'S2' : sInfo.nombre.includes('Sillón 3') ? 'S3' : 'S';
+      let titleStr = `[${sillShort}] ${c.nombre_paciente}`;
       if (c.motivo) titleStr += ' - ' + c.motivo;
+      if (c.doctor) titleStr += ` (${c.doctor.split(' ')[0]})`;
 
       return {
         id: c.id,
@@ -695,7 +1438,24 @@ function renderPacientes(){
   data.sort((a,b)=>a.nombre.localeCompare(b.nombre));
   const tb=document.getElementById('pacientes-tbody'),em=document.getElementById('pacientes-empty');
   if(!data.length){tb.innerHTML='';em.hidden=false;return}em.hidden=true;
-  tb.innerHTML=data.map(p=>`<tr><td><strong>${escH(p.nombre)}</strong></td><td>${escH(p.telefono||'-')}</td><td>${escH(p.correo||'-')}</td><td>${prettyDate(p.createdAt?.slice(0,10))}</td><td><div class="td-actions"><button class="btn-icon btn-icon--whatsapp" title="WhatsApp" onclick="enviarWhatsApp('paciente','${p.id}')">${waIcon}</button><button class="btn-icon" title="Editar" onclick="openModal('paciente',DB.find('pacientes','${p.id}'))">${editIcon}</button><button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('pacientes','${p.id}')">${delIcon}</button></div></td></tr>`).join('');
+  
+  const presups = DB.get('presupuestos');
+  const pagos = DB.get('pagos');
+  
+  tb.innerHTML=data.map(p=>{
+      // Calc saldo
+      const pPresups = presups.filter(x => x.nombre_paciente === p.nombre && x.estado === 'aprobado');
+      const pPagos = pagos.filter(x => x.nombre_paciente === p.nombre);
+      const totalDeuda = pPresups.reduce((sum, item) => sum + (item.monto || 0), 0);
+      const totalPagado = pPagos.reduce((sum, item) => sum + (item.monto || 0), 0);
+      const saldo = totalDeuda - totalPagado;
+      
+      const saldoHtml = saldo > 0 
+          ? `<span style="color: var(--red); font-weight: bold;">-${fmtMoney(saldo)} (Deuda)</span>`
+          : `<span style="color: var(--green); font-weight: bold;">${fmtMoney(Math.abs(saldo))} (A Favor/Ok)</span>`;
+          
+      return `<tr><td><strong>${escH(p.nombre)}</strong></td><td>${escH(p.telefono||'-')}</td><td>${escH(p.correo||'-')}</td><td>${prettyDate(p.createdAt?.slice(0,10))}</td><td>${saldoHtml}</td><td><div class="td-actions"><button class="btn-icon btn-icon--whatsapp" title="WhatsApp" onclick="enviarWhatsApp('paciente','${p.id}')">${waIcon}</button><button class="btn-icon" title="Editar" onclick="openModal('paciente',DB.find('pacientes','${p.id}'))">${editIcon}</button><button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('pacientes','${p.id}')">${delIcon}</button></div></td></tr>`;
+  }).join('');
 }
 
 function renderHistoria(){
@@ -767,6 +1527,298 @@ function renderPresupuestos(){
         <button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('presupuestos','${p.id}')">${delIcon}</button>
       </div></td></tr>`;
   }).join('');
+}
+
+/* ─── CATÁLOGO DE ARANCELES (ESTILO DENTALINK) ─── */
+let currentArancelesCategory = 'all';
+
+function filterAranceles(btn, cat) {
+  currentArancelesCategory = cat;
+  if (btn) {
+    btn.parentElement.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('filter-tab--active'));
+    btn.classList.add('filter-tab--active');
+  }
+  renderAranceles();
+}
+
+function renderAranceles() {
+  const tbody = document.getElementById('aranceles-tbody');
+  const empty = document.getElementById('aranceles-empty');
+  if (!tbody) return;
+
+  const q = (document.getElementById('search-aranceles')?.value || '').toLowerCase().trim();
+  let list = DB.get('prestaciones');
+
+  if (currentArancelesCategory !== 'all') {
+    list = list.filter(p => p.categoria === currentArancelesCategory);
+  }
+
+  if (q) {
+    list = list.filter(p => 
+      (p.nombre && p.nombre.toLowerCase().includes(q)) || 
+      (p.codigo && p.codigo.toLowerCase().includes(q)) || 
+      (p.categoria && p.categoria.toLowerCase().includes(q))
+    );
+  }
+
+  if (list.length === 0) {
+    tbody.innerHTML = '';
+    if (empty) empty.hidden = false;
+    return;
+  }
+
+  if (empty) empty.hidden = true;
+
+  tbody.innerHTML = list.map(p => {
+    const aplicaBadge = p.aplica_a === 'cara' ? '<span class="badge" style="background:#e0f2fe; color:#0369a1;">Superficie / Cara</span>' :
+                        p.aplica_a === 'boca_completa' ? '<span class="badge" style="background:#fef3c7; color:#b45309;">Boca Completa</span>' :
+                        '<span class="badge" style="background:#f3e8ff; color:#7e22ce;">Pieza Dental</span>';
+
+    return `
+      <tr>
+        <td><code>${escH(p.codigo || '-')}</code></td>
+        <td><span class="tag tag--info">${escH(p.categoria || 'General')}</span></td>
+        <td><strong>${escH(p.nombre)}</strong></td>
+        <td>${aplicaBadge}</td>
+        <td><strong style="color:var(--green); font-size:14px;">$${Number(p.precio).toLocaleString()} MXN</strong></td>
+        <td>
+          <button class="btn-secondary" style="padding:4px 8px; font-size:11px; margin-right:4px;" onclick="editarArancelPorId('${p.id}')">✏️ Editar</button>
+          <button class="btn-secondary" style="padding:4px 8px; font-size:11px; color:var(--red);" onclick="eliminarArancel('${p.id}')">🗑️</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function editarArancelPorId(id) {
+  const p = DB.get('prestaciones').find(x => x.id === id);
+  if (p) openModal('arancel', p);
+}
+
+function eliminarArancel(id) {
+  if (!confirm('¿Deseas eliminar este arancel del catálogo?')) return;
+  DB.remove('prestaciones', id);
+  showToast('Arancel eliminado', 'info');
+  renderAranceles();
+}
+
+function saveArancel(e) {
+  e.preventDefault();
+  const id = document.getElementById('arancel-id').value;
+  const codigo = document.getElementById('arancel-codigo').value.trim();
+  const categoria = document.getElementById('arancel-categoria').value;
+  const nombre = document.getElementById('arancel-nombre').value.trim();
+  const precio = parseFloat(document.getElementById('arancel-precio').value) || 0;
+  const aplica_a = document.getElementById('arancel-aplica').value;
+
+  if (!nombre) return showToast('El nombre es obligatorio', 'error');
+
+  if (id) {
+    DB.update('prestaciones', id, { codigo, categoria, nombre, precio, aplica_a });
+    showToast('Arancel actualizado', 'success');
+  } else {
+    DB.add('prestaciones', {
+      codigo: codigo || ('ARAN-' + Math.floor(Math.random()*1000)),
+      categoria,
+      nombre,
+      precio,
+      aplica_a,
+      createdAt: new Date().toISOString()
+    });
+    showToast('Nuevo arancel registrado', 'success');
+  }
+
+  closeModal('arancel');
+  renderAranceles();
+}
+
+/* ─── LABORATORIO DENTAL (OPCIÓN 4 - DENTALINK) ─── */
+let currentLaboratorioFilter = 'all';
+
+function filterLaboratorio(btn, filter) {
+  currentLaboratorioFilter = filter;
+  if (btn) {
+    btn.closest('.filter-tabs').querySelectorAll('.filter-tab').forEach(t => t.classList.remove('filter-tab--active'));
+    btn.classList.add('filter-tab--active');
+  }
+  renderLaboratorio();
+}
+
+function renderLaboratorio() {
+  let data = DB.get('laboratorios_ordenes');
+  const q = (document.getElementById('search-laboratorio')?.value || '').toLowerCase();
+  if (q) {
+    data = data.filter(o => 
+      (o.nombre_paciente || '').toLowerCase().includes(q) ||
+      (o.folio || '').toLowerCase().includes(q) ||
+      (o.trabajo || '').toLowerCase().includes(q) ||
+      (o.laboratorio_nombre || '').toLowerCase().includes(q)
+    );
+  }
+
+  // KPIs
+  const allOrders = DB.get('laboratorios_ordenes');
+  const activasCount = allOrders.filter(o => o.estado === 'enviado' || o.estado === 'en_proceso').length;
+  const recibidasCount = allOrders.filter(o => o.estado === 'recibido').length;
+  const totalCosto = allOrders.reduce((sum, o) => sum + (Number(o.costo_laboratorio) || 0), 0);
+
+  const elActivas = document.getElementById('lab-activas-count');
+  const elRecibidas = document.getElementById('lab-recibidas-count');
+  const elTotalCosto = document.getElementById('lab-total-costo');
+  if (elActivas) elActivas.textContent = activasCount;
+  if (elRecibidas) elRecibidas.textContent = recibidasCount;
+  if (elTotalCosto) elTotalCosto.textContent = fmtMoney(totalCosto);
+
+  // Filtrado por estado de pestaña
+  if (currentLaboratorioFilter !== 'all') {
+    data = data.filter(o => o.estado === currentLaboratorioFilter);
+  }
+
+  // Ordenar por fecha estimada de entrega
+  data.sort((a, b) => (a.fecha_entrega_estimada || '').localeCompare(b.fecha_entrega_estimada || ''));
+
+  const tbody = document.getElementById('laboratorio-tbody');
+  const empty = document.getElementById('laboratorio-empty');
+  if (!tbody) return;
+
+  if (data.length === 0) {
+    tbody.innerHTML = '';
+    if (empty) empty.hidden = false;
+    return;
+  }
+
+  if (empty) empty.hidden = true;
+
+  tbody.innerHTML = data.map(o => {
+    let badgeEstado = '';
+    if (o.estado === 'enviado') {
+      badgeEstado = '<span class="badge" style="background:#dbeafe; color:#1e40af; font-size:11px;">Enviado</span>';
+    } else if (o.estado === 'en_proceso') {
+      badgeEstado = '<span class="badge" style="background:#fef3c7; color:#92400e; font-size:11px;">En Proceso</span>';
+    } else if (o.estado === 'recibido') {
+      badgeEstado = '<span class="badge" style="background:#dcfce7; color:#166534; font-weight:700; font-size:11px;">✓ Recibido en Clínica</span>';
+    } else if (o.estado === 'instalado') {
+      badgeEstado = '<span class="badge" style="background:#f3e8ff; color:#6b21a8; font-weight:700; font-size:11px;">★ Instalado</span>';
+    }
+
+    const folioText = o.folio || ('LAB-' + (o.id || '').slice(-4).toUpperCase());
+    const colorBadge = o.color_guia 
+      ? `<span class="badge" style="background:#fef3c7; color:#92400e; font-size:11px;">${escH(o.color_guia)}</span>`
+      : '<span style="color:var(--gray-400);">-</span>';
+
+    return `
+      <tr>
+        <td><code style="font-size:11px; font-weight:700;">${escH(folioText)}</code></td>
+        <td><strong>${escH(o.nombre_paciente)}</strong></td>
+        <td><span class="tag tag--info">${escH(o.diente || 'Pieza')}</span></td>
+        <td>${escH(o.trabajo)}</td>
+        <td>${escH(o.laboratorio_nombre)}</td>
+        <td>${colorBadge}</td>
+        <td><small style="color:var(--gray-600);">${prettyDate(o.fecha_envio)}</small></td>
+        <td><strong>${prettyDate(o.fecha_entrega_estimada)}</strong></td>
+        <td><strong style="color:var(--green);">${fmtMoney(o.costo_laboratorio)}</strong></td>
+        <td>${badgeEstado}</td>
+        <td style="white-space:nowrap;">
+          ${(o.estado !== 'recibido' && o.estado !== 'instalado') ? `
+            <button class="btn-primary" style="padding:3px 7px; font-size:11px; background:#10b981; border-color:#059669; margin-right:4px;" onclick="marcarOrdenRecibida('${o.id}')" title="Marcar como recibido en clínica">📦 Recibir</button>
+          ` : ''}
+          ${o.estado === 'recibido' ? `
+            <button class="btn-primary" style="padding:3px 7px; font-size:11px; background:#8b5cf6; border-color:#7c3aed; margin-right:4px;" onclick="marcarOrdenInstalada('${o.id}')" title="Marcar como instalado en paciente">🦷 Instalar</button>
+          ` : ''}
+          <button class="btn-icon" title="Editar" onclick="openModal('laboratorio', DB.find('laboratorios_ordenes', '${o.id}'))">${editIcon}</button>
+          <button class="btn-icon" style="color:var(--red);" title="Eliminar" onclick="quickDelete('laboratorios_ordenes', '${o.id}')">${delIcon}</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function marcarOrdenRecibida(id) {
+  const o = DB.get('laboratorios_ordenes').find(x => x.id === id);
+  if (!o) return;
+  DB.update('laboratorios_ordenes', id, {
+    estado: 'recibido',
+    fecha_recibido: todayStr()
+  });
+  showToast(`Trabajo protésico recibido en clínica (${o.folio || 'Orden'}). ¡Listo para cita de instalación!`, 'success');
+  renderLaboratorio();
+}
+
+function marcarOrdenInstalada(id) {
+  const o = DB.get('laboratorios_ordenes').find(x => x.id === id);
+  if (!o) return;
+  DB.update('laboratorios_ordenes', id, {
+    estado: 'instalado'
+  });
+
+  // Registrar automáticamente en la evolución clínica del expediente del paciente
+  DB.add('historia', {
+    nombre_paciente: o.nombre_paciente,
+    fecha: todayStr(),
+    diente_zona: `Pieza #${o.diente || 'General'}`,
+    tratamiento: `Colocación / Instalación de ${o.trabajo}`,
+    descripcion: `Trabajo de laboratorio terminado e instalado exitosamente por ${o.doctor || 'Doctor(a)'}. Lab Técnico: ${o.laboratorio_nombre}, Tono: ${o.color_guia || 'N/A'}. Ajuste oclusal y pulido satisfactorio.`
+  });
+
+  showToast(`Prótesis instalada en paciente ${o.nombre_paciente}. Se registró nota en su evolución clínica.`, 'success');
+  renderLaboratorio();
+}
+
+function guardarOrdenLaboratorio(e) {
+  e.preventDefault();
+  const id = document.getElementById('lab-id').value;
+  const paciente = document.getElementById('lab-paciente').value;
+  const diente = document.getElementById('lab-diente').value.trim();
+  const trabajo = document.getElementById('lab-trabajo').value;
+  const labNombre = document.getElementById('lab-nombre').value.trim();
+  const color = document.getElementById('lab-color').value.trim();
+  const costo = parseFloat(document.getElementById('lab-costo').value) || 0;
+  const fechaEnvio = document.getElementById('lab-fecha-envio').value || todayStr();
+  const fechaEntrega = document.getElementById('lab-fecha-entrega').value;
+  const doctor = document.getElementById('lab-doctor').value || 'Dra. Rosa Avila';
+  const estado = document.getElementById('lab-estado').value || 'enviado';
+  const notas = document.getElementById('lab-notas').value.trim();
+
+  if (!paciente) return showToast('Seleccione un paciente', 'error');
+  if (!fechaEntrega) return showToast('La fecha estimada de entrega es obligatoria', 'error');
+
+  if (id) {
+    DB.update('laboratorios_ordenes', id, {
+      nombre_paciente: paciente,
+      diente: diente,
+      trabajo: trabajo,
+      laboratorio_nombre: labNombre,
+      color_guia: color,
+      costo_laboratorio: costo,
+      fecha_envio: fechaEnvio,
+      fecha_entrega_estimada: fechaEntrega,
+      doctor: doctor,
+      estado: estado,
+      notas: notas
+    });
+    showToast('Orden de laboratorio actualizada', 'success');
+  } else {
+    const folio = 'LAB-' + Date.now().toString().slice(-6);
+    DB.add('laboratorios_ordenes', {
+      folio: folio,
+      nombre_paciente: paciente,
+      diente: diente,
+      trabajo: trabajo,
+      laboratorio_nombre: labNombre,
+      color_guia: color,
+      costo_laboratorio: costo,
+      fecha_envio: fechaEnvio,
+      fecha_entrega_estimada: fechaEntrega,
+      doctor: doctor,
+      estado: estado,
+      notas: notas,
+      createdAt: new Date().toISOString()
+    });
+    showToast(`Orden ${folio} enviada a laboratorio`, 'success');
+  }
+
+  closeModal('laboratorio');
+  renderLaboratorio();
 }
 
 function renderPagos(){
@@ -868,7 +1920,7 @@ function imprimirCorteCaja() {
 
 /* Quick actions */
 function quickUpdate(col,id,patch){DB.update(col,id,patch);const renders={citas:renderCitas,presupuestos:renderPresupuestos,tareas:renderTareas};renders[col]?.();refreshDashboard();showToast('Actualizado','success')}
-function quickDelete(col,id){if(!confirm('¿Eliminar este registro?'))return;DB.remove(col,id);const renders={citas:renderCitas,pacientes:renderPacientes,historia:renderHistoria,presupuestos:renderPresupuestos,pagos:renderPagos,gastos:renderGastos,inventario:renderInventario,tareas:renderTareas,recetas:renderRecetas};renders[col]?.();refreshDashboard();showToast('Eliminado','info')}
+function quickDelete(col,id){if(!confirm('¿Eliminar este registro?'))return;DB.remove(col,id);const renders={citas:renderCitas,pacientes:renderPacientes,historia:renderHistoria,presupuestos:renderPresupuestos,laboratorios_ordenes:renderLaboratorio,pagos:renderPagos,gastos:renderGastos,inventario:renderInventario,tareas:renderTareas,recetas:renderRecetas,ortodoncia:()=>currentPacienteOdonto?renderOrtodoncia(currentPacienteOdonto):null};renders[col]?.();refreshDashboard();showToast('Eliminado','info')}
 
 /* ─── 6. REPORTES ─── */
 function renderReportes(){
@@ -887,13 +1939,42 @@ function renderReportes(){
     <div class="report-kpi"><div class="report-kpi__icon report-kpi__icon--green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/></svg></div><p class="report-kpi__value">${fmtMoney(totalIngresos)}</p><p class="report-kpi__label">Ingresos</p></div>
     <div class="report-kpi"><div class="report-kpi__icon report-kpi__icon--red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/></svg></div><p class="report-kpi__value">${fmtMoney(totalGastos)}</p><p class="report-kpi__label">Gastos</p></div>`;
 
-  // Balance
+  // Balance Chart (Ingresos vs Gastos)
   const balance=totalIngresos-totalGastos;
   const byMethod={};fp.forEach(p=>{byMethod[p.metodo||'Sin definir']=(byMethod[p.metodo||'Sin definir']||0)+(p.monto||0)});
-  document.getElementById('rpt-balance').innerHTML=`
-    <div class="income-big ${balance>=0?'income-big--green':'income-big--red'}">${fmtMoney(balance)}</div>
-    <p class="income-label">Balance (Ingresos − Gastos)</p>
-    ${Object.entries(byMethod).map(([m,v])=>`<div class="income-method"><span class="income-method__name">${escH(m)}</span><span class="income-method__val">${fmtMoney(v)}</span></div>`).join('')||'<p style="color:var(--gray-400);font-size:12px">Sin pagos</p>'}`;
+  
+  if (window.Chart) {
+      const ctxBalance = document.getElementById('chart-balance');
+      if (ctxBalance) {
+          if (Chart.getChart(ctxBalance)) Chart.getChart(ctxBalance).destroy();
+          new Chart(ctxBalance, {
+              type: 'doughnut',
+              data: {
+                  labels: ['Ingresos', 'Gastos'],
+                  datasets: [{
+                      data: [totalIngresos, totalGastos],
+                      backgroundColor: ['#10b981', '#ef4444'],
+                      borderWidth: 0
+                  }]
+              },
+              options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  cutout: '70%',
+                  plugins: { legend: { position: 'bottom' } }
+              }
+          });
+      }
+  }
+  
+  const balanceText = document.getElementById('rpt-balance-text');
+  if (balanceText) {
+      balanceText.innerHTML = `
+        <div class="income-big ${balance>=0?'income-big--green':'income-big--red'}">${fmtMoney(balance)}</div>
+        <p class="income-label">Balance (Ingresos − Gastos)</p>
+        ${Object.entries(byMethod).map(([m,v])=>`<div class="income-method"><span class="income-method__name">${escH(m)}</span><span class="income-method__val">${fmtMoney(v)}</span></div>`).join('')||'<p style="color:var(--gray-400);font-size:12px">Sin pagos</p>'}
+      `;
+  }
     
   // CORTE DE CAJA
   const efe = byMethod['Efectivo'] || 0;
@@ -944,11 +2025,34 @@ function renderReportes(){
   }
 
 
-  // Bar chart
+  // Bar chart Motivos
   const byMot={};fc.forEach(c=>{byMot[c.motivo||'Otro']=(byMot[c.motivo||'Otro']||0)+1});
   const sorted=Object.entries(byMot).sort((a,b)=>b[1]-a[1]).slice(0,6);
-  const mx=sorted.length?sorted[0][1]:1;
-  document.getElementById('rpt-motivos').innerHTML=sorted.map(([l,v])=>`<div class="bar-row"><span class="bar-label">${escH(l)}</span><div class="bar-track"><div class="bar-fill" style="width:${(v/mx*100).toFixed(0)}%"></div><span class="bar-value">${v}</span></div></div>`).join('')||'<p style="color:var(--gray-400);font-size:12px">Sin datos</p>';
+  
+  if (window.Chart && sorted.length > 0) {
+      const ctxMotivos = document.getElementById('chart-motivos');
+      if (ctxMotivos) {
+          if (Chart.getChart(ctxMotivos)) Chart.getChart(ctxMotivos).destroy();
+          new Chart(ctxMotivos, {
+              type: 'bar',
+              data: {
+                  labels: sorted.map(s => s[0]),
+                  datasets: [{
+                      label: 'Citas',
+                      data: sorted.map(s => s[1]),
+                      backgroundColor: '#3b82f6',
+                      borderRadius: 4
+                  }]
+              },
+              options: {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: { legend: { display: false } },
+                  scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+              }
+          });
+      }
+  }
 
   // Last 10 citas
   const l10=[...fc].sort((a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora)).slice(0,10);
@@ -964,9 +2068,74 @@ function openModal(type,editData){
   const pacOpts=()=>DB.get('pacientes').map(p=>`<option value="${escH(p.nombre)}" ${editData?.nombre_paciente===p.nombre?'selected':''}>${escH(p.nombre)}</option>`).join('');
   const motivoOpts=()=>['Consulta','Limpieza','Extracción','Ortodoncia','Revisión','Blanqueamiento','Radiografía','Corona','Implante','Emergencia','Otro'].map(m=>`<option ${editData?.motivo===m?'selected':''}>${m}</option>`).join('');
 
+  if(type==='usuario' || type==='periodontograma' || type==='arancel' || type==='laboratorio'){
+     document.getElementById('modal-'+type)?.removeAttribute('hidden');
+     if(type==='usuario'){
+         document.getElementById('form-usuario').reset();
+         delete document.getElementById('form-usuario').dataset.editId;
+         const titleEl = document.getElementById('modal-usuario-title');
+         if (titleEl) titleEl.textContent = 'Nuevo Usuario';
+         document.getElementById('u-password').required=true;
+         const helpEl = document.getElementById('u-password-help');
+         if (helpEl) helpEl.style.display = 'none';
+         document.getElementById('u-rol').value = 'doctor';
+         actualizarInfoRolModal('doctor');
+     } else if(type==='arancel'){
+         document.getElementById('form-arancel').reset();
+         document.getElementById('arancel-id').value = editData?.id || '';
+         document.getElementById('modal-arancel-title').textContent = editData ? 'Editar Arancel' : 'Nuevo Arancel / Prestación';
+         if(editData){
+           document.getElementById('arancel-codigo').value = editData.codigo || '';
+           document.getElementById('arancel-categoria').value = editData.categoria || 'Operatorias y Resinas';
+           document.getElementById('arancel-nombre').value = editData.nombre || '';
+           document.getElementById('arancel-precio').value = editData.precio || 0;
+           document.getElementById('arancel-aplica').value = editData.aplica_a || 'cara';
+         }
+     } else if(type==='laboratorio'){
+         document.getElementById('form-laboratorio').reset();
+         const pSelect = document.getElementById('lab-paciente');
+         if (pSelect) {
+           pSelect.innerHTML = '<option value="">Seleccionar Paciente...</option>' + 
+             DB.get('pacientes').map(p => `<option value="${escH(p.nombre)}" ${editData?.nombre_paciente === p.nombre ? 'selected' : ''}>${escH(p.nombre)}</option>`).join('');
+         }
+         document.getElementById('modal-laboratorio-title').textContent = editData ? `Editar Orden: ${editData.folio || 'Laboratorio'}` : 'Nueva Orden de Laboratorio Dental';
+         document.getElementById('lab-id').value = editData?.id || '';
+         document.getElementById('lab-diente').value = editData?.diente || '';
+         document.getElementById('lab-trabajo').value = editData?.trabajo || 'Corona Zirconia Monolítica';
+         document.getElementById('lab-nombre').value = editData?.laboratorio_nombre || '';
+         document.getElementById('lab-color').value = editData?.color_guia || '';
+         document.getElementById('lab-costo').value = editData?.costo_laboratorio || '';
+         document.getElementById('lab-fecha-envio').value = editData?.fecha_envio || todayStr();
+         document.getElementById('lab-fecha-entrega').value = editData?.fecha_entrega_estimada || fmt(addDays(new Date(), 5));
+         document.getElementById('lab-doctor').value = editData?.doctor || 'Dra. Rosa Avila';
+         document.getElementById('lab-estado').value = editData?.estado || 'enviado';
+         document.getElementById('lab-notas').value = editData?.notas || '';
+     }
+     return;
+  }
+
   if(type==='cita'){
     title.textContent=isE?'Editar Cita':'Nueva Cita';sub.textContent=isE?'Actualizar':'Agendar';
-    body.innerHTML=`<div class="form-group"><label class="form-label">Paciente</label><select class="form-input form-select" id="f-pac"><option value="">Seleccionar...</option>${pacOpts()}</select></div><div class="form-row"><div class="form-group"><label class="form-label">Fecha</label><input class="form-input" type="date" id="f-fecha" value="${editData?.fecha||todayStr()}"></div><div class="form-group"><label class="form-label">Hora</label><input class="form-input" type="time" id="f-hora" value="${editData?.hora||'09:00'}"></div></div><div class="form-group"><label class="form-label">Motivo</label><select class="form-input form-select" id="f-motivo"><option value="">Seleccionar...</option>${motivoOpts()}</select></div>${isE?`<div class="form-group"><label class="form-label">Estado</label><select class="form-input form-select" id="f-estado">${['pendiente','completada','cancelada'].map(s=>`<option ${editData?.estado===s?'selected':''}>${s}</option>`).join('')}</select></div>`:''}`;
+    const sillonesList = DB.get('sillones').length > 0 ? DB.get('sillones') : [
+      { id: 'sillon_1', nombre: 'Sillón 1 (Principal)' },
+      { id: 'sillon_2', nombre: 'Sillón 2 (Quirúrgico)' },
+      { id: 'sillon_3', nombre: 'Sillón 3 (Odonto / Orto)' }
+    ];
+    const sillonOpts = () => sillonesList.map(s => `<option value="${s.id}" ${(editData?.id_sillon || 'sillon_1') === s.id ? 'selected' : ''}>${escH(s.nombre)}</option>`).join('');
+
+    body.innerHTML=`
+      <div class="form-group"><label class="form-label">Paciente *</label><select class="form-input form-select" id="f-pac" required><option value="">Seleccionar...</option>${pacOpts()}</select></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Sillón / Unidad Dental *</label><select class="form-input form-select" id="f-sillon">${sillonOpts()}</select></div>
+        <div class="form-group"><label class="form-label">Doctor(a) *</label><input class="form-input" id="f-doctor" value="${escH(editData?.doctor||'Dra. Rosa Avila')}" placeholder="Ej: Dra. Rosa Avila"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Fecha *</label><input class="form-input" type="date" id="f-fecha" value="${editData?.fecha||todayStr()}"></div>
+        <div class="form-group"><label class="form-label">Hora *</label><input class="form-input" type="time" id="f-hora" value="${editData?.hora||'09:00'}"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Motivo de Consulta *</label><select class="form-input form-select" id="f-motivo"><option value="">Seleccionar...</option>${motivoOpts()}</select></div>
+      ${isE?`<div class="form-group"><label class="form-label">Estado</label><select class="form-input form-select" id="f-estado">${['pendiente','completada','cancelada'].map(s=>`<option ${editData?.estado===s?'selected':''}>${s}</option>`).join('')}</select></div>`:''}
+    `;
   }else if(type==='paciente'){
     title.textContent=isE?'Editar Paciente':'Nuevo Paciente';sub.textContent=isE?'Actualizar':'Registrar';
     body.innerHTML=`<div class="form-group"><label class="form-label">Nombre completo</label><input class="form-input" id="f-nombre" placeholder="Juan Pérez" value="${escH(editData?.nombre||'')}"></div><div class="form-row"><div class="form-group"><label class="form-label">Teléfono</label><input class="form-input" id="f-tel" placeholder="555-123-4567" value="${escH(editData?.telefono||'')}"></div><div class="form-group"><label class="form-label">Correo</label><input class="form-input" type="email" id="f-correo" placeholder="correo@mail.com" value="${escH(editData?.correo||'')}"></div></div>`;
@@ -976,6 +2145,9 @@ function openModal(type,editData){
   }else if(type==='historia'){
     title.textContent='Registrar Evolución Clínica';sub.textContent='Guardar';
     body.innerHTML=`<div class="form-group"><label class="form-label">Paciente</label><select class="form-input form-select" id="f-pac"><option value="">Seleccionar...</option>${pacOpts()}</select></div><div class="form-row"><div class="form-group"><label class="form-label">Diente / Zona</label><input class="form-input" id="f-diente" placeholder="Ej: Molar 36, Arcada sup."></div><div class="form-group"><label class="form-label">Tratamiento</label><input class="form-input" id="f-tratamiento" placeholder="Ej: Resina, Brackets"></div></div><div class="form-group"><label class="form-label">Descripción del procedimiento</label><textarea class="form-input form-textarea" id="f-desc" placeholder="Detalles del procedimiento realizado..."></textarea></div>`;
+  }else if(type==='ortodoncia'){
+    title.textContent=isE?'Editar Ortodoncia':'Nueva Evolución Ortodoncia';sub.textContent=isE?'Actualizar':'Guardar';
+    body.innerHTML=`<div class="form-group"><label class="form-label">Paciente</label><select class="form-input form-select" id="f-pac"><option value="">Seleccionar...</option>${pacOpts()}</select></div><div class="form-row"><div class="form-group"><label class="form-label">Aparatología</label><input class="form-input" id="f-aparato" placeholder="Ej. Brackets MBT, Expansor" value="${escH(editData?.aparatologia||'')}"></div><div class="form-group"><label class="form-label">Arcos / Ligas</label><input class="form-input" id="f-ligas" placeholder="Ej. NiTi 0.14, Cadena 13-23" value="${escH(editData?.ligas||'')}"></div></div><div class="form-row"><div class="form-group"><label class="form-label">Higiene</label><select class="form-input form-select" id="f-higiene"><option ${editData?.higiene==='Buena'?'selected':''}>Buena</option><option ${editData?.higiene==='Regular'?'selected':''}>Regular</option><option ${editData?.higiene==='Mala'?'selected':''}>Mala</option></select></div><div class="form-group"><label class="form-label">Fecha</label><input class="form-input" type="date" id="f-fecha" value="${editData?.fecha||todayStr()}"></div></div><div class="form-group"><label class="form-label">Notas / Tracción</label><textarea class="form-input form-textarea" id="f-notas" placeholder="Instrucciones al paciente, uso de elásticos...">${escH(editData?.notas||'')}</textarea></div>`;
   }else if(type==='presupuesto'){
     title.textContent=isE?'Editar Presupuesto':'Nuevo Presupuesto';sub.textContent=isE?'Actualizar':'Crear';
     body.innerHTML=`<div class="form-group"><label class="form-label">Paciente</label><select class="form-input form-select" id="f-pac"><option value="">Seleccionar...</option>${pacOpts()}</select></div>
@@ -998,7 +2170,7 @@ function openModal(type,editData){
             try {
                 const items = JSON.parse(editData.tratamientos);
                 if (Array.isArray(items)) {
-                    items.forEach(i => addPItem(i.concepto, i.costo));
+                    items.forEach(i => addPItem(i.concepto, i.costo, i.fase));
                 } else {
                     addPItem(editData.tratamientos, editData.monto);
                 }
@@ -1021,16 +2193,57 @@ function openModal(type,editData){
   }
   ov.removeAttribute('hidden');setTimeout(()=>body.querySelector('input,select,textarea')?.focus(),80);
 }
-function closeModal(){document.getElementById('modal-overlay')?.setAttribute('hidden','');modalType=null;modalEditId=null}
+function closeModal(customId){
+  if (customId) {
+    document.getElementById('modal-' + customId)?.setAttribute('hidden', '');
+  } else {
+    document.getElementById('modal-overlay')?.setAttribute('hidden', '');
+    modalType = null;
+    modalEditId = null;
+  }
+}
 function submitModal(){
   const v=id=>{const el=document.getElementById(id);return el?el.value.trim():''};
   const req=(fields,labels)=>{const missing=fields.map((f,i)=>v(f)?null:labels[i]).filter(Boolean);if(missing.length){showToast('Falta: '+missing.join(', '),'error');return false}return true};
 
   if(modalType==='cita'){
     if(!req(['f-pac','f-fecha','f-hora','f-motivo'],['Paciente','Fecha','Hora','Motivo']))return;
-    if(modalEditId)DB.update('citas',modalEditId,{nombre_paciente:v('f-pac'),fecha:v('f-fecha'),hora:v('f-hora'),motivo:v('f-motivo'),estado:v('f-estado')||'pendiente'});
-    else DB.add('citas',{nombre_paciente:v('f-pac'),fecha:v('f-fecha'),hora:v('f-hora'),motivo:v('f-motivo'),estado:'pendiente'});
-    addFeedItem({title:`${modalEditId?'Cita actualizada':'Nueva cita'}: ${v('f-pac')}`,sub:`${v('f-motivo')} – ${v('f-fecha')} ${v('f-hora')}`,type:'cita'});
+    const idSillon = v('f-sillon') || 'sillon_1';
+    const sillonesList = DB.get('sillones');
+    const sillonObj = sillonesList.find(s => s.id === idSillon);
+    const nombreSillon = sillonObj ? sillonObj.nombre : (idSillon === 'sillon_2' ? 'Sillón 2 (Quirúrgico)' : idSillon === 'sillon_3' ? 'Sillón 3 (Odonto / Orto)' : 'Sillón 1 (Principal)');
+    const doctorCita = v('f-doctor') || 'Dra. Rosa Avila';
+    const fechaCita = v('f-fecha');
+    const horaCita = v('f-hora');
+
+    // Validación de conflicto físico en el sillón (Candado de sobrecupo)
+    const conflicto = DB.get('citas').find(c => 
+      c.id !== modalEditId &&
+      c.fecha === fechaCita &&
+      c.hora === horaCita &&
+      (c.id_sillon || 'sillon_1') === idSillon &&
+      c.estado !== 'cancelada'
+    );
+
+    if (conflicto) {
+      const confirmar = confirm(`⚠️ ALERTA DE CONFLICTO EN SILLÓN:\nEl "${nombreSillon}" ya tiene una cita programada a las ${horaCita} con el paciente "${conflicto.nombre_paciente}".\n\n¿Desea registrar de todos modos o prefiere cancelar para elegir otro sillón u horario?`);
+      if (!confirmar) return;
+    }
+
+    const payload = {
+      nombre_paciente: v('f-pac'),
+      id_sillon: idSillon,
+      nombre_sillon: nombreSillon,
+      doctor: doctorCita,
+      fecha: fechaCita,
+      hora: horaCita,
+      motivo: v('f-motivo'),
+      estado: modalEditId ? (v('f-estado') || 'pendiente') : 'pendiente'
+    };
+
+    if(modalEditId) DB.update('citas', modalEditId, payload);
+    else DB.add('citas', payload);
+    addFeedItem({title:`${modalEditId?'Cita actualizada':'Nueva cita'}: ${v('f-pac')}`,sub:`[${nombreSillon}] ${v('f-motivo')} – ${fechaCita} ${horaCita}`,type:'cita'});
   }else if(modalType==='paciente'){
     if(!req(['f-nombre'],['Nombre']))return;
     if(modalEditId)DB.update('pacientes',modalEditId,{nombre:v('f-nombre'),telefono:v('f-tel'),correo:v('f-correo')});
@@ -1045,16 +2258,22 @@ function submitModal(){
     if(!req(['f-pac','f-diente','f-tratamiento'],['Paciente','Diente/Zona','Tratamiento']))return;
     DB.add('historia',{nombre_paciente:v('f-pac'),diente_zona:v('f-diente'),tratamiento:v('f-tratamiento'),descripcion:v('f-desc'),fecha:todayStr()});
     addFeedItem({title:`Evolución: ${v('f-pac')}`,sub:`${v('f-diente')} – ${v('f-tratamiento')}`,type:'historia'});
+  }else if(modalType==='ortodoncia'){
+    if(!req(['f-pac','f-fecha'],['Paciente','Fecha']))return;
+    if(modalEditId) DB.update('ortodoncia',modalEditId,{nombre_paciente:v('f-pac'),aparatologia:v('f-aparato'),ligas:v('f-ligas'),higiene:v('f-higiene'),notas:v('f-notas'),fecha:v('f-fecha')});
+    else DB.add('ortodoncia',{nombre_paciente:v('f-pac'),aparatologia:v('f-aparato'),ligas:v('f-ligas'),higiene:v('f-higiene'),notas:v('f-notas'),fecha:v('f-fecha')});
+    addFeedItem({title:`Ortodoncia: ${v('f-pac')}`,sub:`Evolución ${v('f-fecha')}`,type:'historia'});
   }else if(modalType==='presupuesto'){
     // Recopilar items dinámicos
     const concepts = Array.from(document.querySelectorAll('.p-item-concepto')).map(el => el.value.trim());
     const costos = Array.from(document.querySelectorAll('.p-item-costo')).map(el => parseFloat(el.value) || 0);
+    const fases = Array.from(document.querySelectorAll('.p-item-fase')).map(el => el.value);
     
     let items = [];
     let sum = 0;
     for(let i = 0; i < concepts.length; i++) {
         if (concepts[i] || costos[i] > 0) {
-            items.push({ concepto: concepts[i] || 'Tratamiento', costo: costos[i] });
+            items.push({ fase: fases[i] || 'Fase 1: Higiene/Prevención', concepto: concepts[i] || 'Tratamiento', costo: costos[i] });
             sum += costos[i];
         }
     }
@@ -1089,7 +2308,7 @@ function submitModal(){
   }
   showToast('Guardado correctamente','success');closeModal();
   // Refresh all relevant views
-  [renderCitas,renderPacientes,renderHistoria,renderPresupuestos,renderPagos,renderGastos,renderInventario,renderTareas,refreshDashboard].forEach(fn=>fn());
+  [renderCitas,renderPacientes,renderHistoria,renderPresupuestos,renderLaboratorio,renderPagos,renderGastos,renderInventario,renderTareas,refreshDashboard].forEach(fn=>fn());
 }
 
 /* ─── 8. NLP MOTOR (8 ACCIONES) ─── */
@@ -1242,14 +2461,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 
-function addPItem(concepto = '', costo = '') {
+function addPItem(concepto = '', costo = '', fase = 'Fase 1: Higiene/Prevención') {
     const container = document.getElementById('p-items-container');
     if (!container) return;
     const div = document.createElement('div');
     div.className = 'p-row';
     div.innerHTML = `
-        <input type="text" class="form-input p-item-concepto" placeholder="Concepto / Tratamiento" value="${escH(concepto)}">
-        <input type="number" class="form-input p-item-costo" placeholder="Costo $" min="0" value="${costo}" oninput="calcPTotal()">
+        <select class="form-input p-item-fase" style="width: 150px;">
+          <option ${fase === 'Fase 1: Higiene/Prevención' ? 'selected' : ''}>Fase 1: Higiene/Prevención</option>
+          <option ${fase === 'Fase 2: Cirugía/Endodoncia' ? 'selected' : ''}>Fase 2: Cirugía/Endodoncia</option>
+          <option ${fase === 'Fase 3: Rehabilitación' ? 'selected' : ''}>Fase 3: Rehabilitación</option>
+        </select>
+        <input type="text" class="form-input p-item-concepto" placeholder="Concepto / Tratamiento" value="${escH(concepto)}" style="flex: 1;">
+        <input type="number" class="form-input p-item-costo" placeholder="Costo $" min="0" value="${costo}" oninput="calcPTotal()" style="width: 100px;">
         <button type="button" class="btn-remove-row" onclick="deletePItem(this)" title="Borrar">✕</button>
     `;
     container.appendChild(div);
@@ -1289,7 +2513,10 @@ function imprimirPresupuesto(id) {
     if (tbody) {
         tbody.innerHTML = items.map(i => `
             <tr>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">${escH(i.concepto)}</td>
+                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
+                  <div style="font-weight:bold; color:var(--blue); font-size:12px;">${escH(i.fase || 'Fase 1: Higiene/Prevención')}</div>
+                  ${escH(i.concepto)}
+                </td>
                 <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #4b5563;">${fmtMoney(i.costo)}</td>
             </tr>
         `).join('');

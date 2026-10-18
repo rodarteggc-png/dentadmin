@@ -4,4 +4,4 @@ dentadmin.sqlite
 *.log
 dist/
 uploads/
-
+.env
