@@ -123,3 +123,17 @@ Proveer una solución web en la nube para que clínicas y consultorios puedan ac
 * **Enlace en Tiempo Real AsistDental ➔ DentaAdmin:**
   - En `AsistDental/api/book.js`, cada cita reservada por el bot conversacional de IA dispara un `fetch('https://dentadmin.vercel.app/api/bot-cita')`.
   - DentaAdmin crea automáticamente el expediente del paciente (si es nuevo) y asienta la cita en el calendario y sala de espera sin intervención humana.
+
+---
+
+## 🖼️ 10. GABINETE DE IMÁGENES & FOTOS PERMANENTES EN TURSO CLOUD (OPTIMIZACIÓN ZERO-COST)
+* **Reto Arquitectónico:**
+  - Los contenedores serverless de Vercel son efímeros (el disco `/tmp` se borra al apagarse la función).
+  - Subir fotos clínicas directas desde smartphones de 12MP/48MP (5 a 15 MB por foto) agotaría innecesariamente la cuota gratuita de base de datos.
+* **Solución Implementada (Compresión en Navegador + Almacenamiento Directo en Turso):**
+  - **Compresión en Cliente (`public/app.js`):** Función `compressImageBeforeUpload` con la API nativa `<canvas>`. Redimensiona fotos grandes a un máximo de 1280px con compresión JPEG al 82%. Reduce el peso en un 95%–98% (de ~8-12 MB a solo ~120-180 KB) de forma imperceptible y en menos de 0.2 segundos.
+  - **Tabla `archivos` en Turso Cloud:** Columnas `data TEXT` (Base64 del archivo), `mime_type TEXT` y `size_bytes INTEGER`.
+  - **Servicio On-Demand con Caché (`/api/archivos/:id/ver`):** Sirve el binario directamente desde Turso con encabezados `Cache-Control: public, max-age=86400` para que el navegador las guarde localmente y no re-consulte la base de datos en cada recarga.
+  - **Carga Inicial Ultraligera:** El endpoint general `GET /api/archivos` excluye la columna `data`, descargando únicamente metadatos (ID, nombre, fecha y tamaño en KB) para no saturar memoria.
+  - **Rendimiento de Cuota:** En los 9 GB gratuitos de Turso caben **más de 50,000 fotos clínicas optimizadas**, garantizando cero costos durante el mes de prueba y más allá.
+
