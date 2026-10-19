@@ -2917,3 +2917,39 @@ function imprimirTicketPago(id) {
         document.body.classList.remove('printing-pago');
     }, 500);
 }
+
+// --- Sincronización con Google Calendar (Dra. Rosa Ávila) ---
+async function syncGoogleCalendar() {
+    const btn = document.getElementById('btn-sync-google');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:6px;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>Sincronizando...`;
+    }
+    showToast('Consultando agenda de Google Calendar (dra.avilaodontologia@gmail.com)...', 'info');
+
+    try {
+        const res = await fetch('/api/calendar/sync', {
+            method: 'POST',
+            headers: DB.getHeaders()
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showToast(`✅ Sincronización exitosa: ${data.importados} citas importadas (${data.totalGoogle} eventos en Google)`, 'success');
+            await loadData('citas');
+            await loadData('pacientes');
+            renderCitas();
+            if (typeof renderSalaEspera === 'function') renderSalaEspera();
+        } else {
+            showToast(`Aviso: ${data.reason || 'Verifica la variable GOOGLE_CREDENTIALS en Vercel'}`, 'warning');
+        }
+    } catch (err) {
+        console.error('Error al sincronizar Google Calendar:', err);
+        showToast('Error al conectar con el servicio de calendario', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:6px;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>Sync Google Calendar`;
+        }
+    }
+}

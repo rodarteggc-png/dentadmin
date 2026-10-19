@@ -4,10 +4,12 @@ const cors = require('cors');
 const path = require('path');
 const db = require('./database');
 const crypto = require('crypto');
+const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
+const googleCalendar = require('./googleCalendar');
 
 const helmet = require('helmet');
 
@@ -41,8 +43,29 @@ app.get('/api/health', (req, res) => {
         database: db.isTurso ? 'turso_cloud' : (process.env.VERCEL ? 'turso_missing' : 'sqlite_local'),
         hasTursoUrl: Boolean(process.env.TURSO_DATABASE_URL),
         hasTursoToken: Boolean(process.env.TURSO_AUTH_TOKEN),
+        hasGoogleCredentials: Boolean(process.env.GOOGLE_CREDENTIALS),
+        doctorCalendarEmail: googleCalendar.CALENDAR_ID,
         time: new Date().toISOString()
     });
+});
+
+// Endpoints de Sincronización con Google Calendar
+app.post('/api/calendar/sync', async (req, res) => {
+    try {
+        const result = await googleCalendar.syncGoogleEventsToDb(db, req.body.timeMin, req.body.timeMax);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/calendar/sync', async (req, res) => {
+    try {
+        const result = await googleCalendar.syncGoogleEventsToDb(db, req.query.timeMin, req.query.timeMax);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // Servir la carpeta uploads estáticamente para ver las imágenes
@@ -134,21 +157,23 @@ app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => 
 });
 
 // --- Integración con Asistente Virtual (Bot de Citas) ---
-function registrarCitaDesdeBot({ nombre, telefono, fecha, hora, motivo }, callback) {
+function registrarCitaDesdeBot({ nombre, telefono, correo, fecha, hora, motivo, doctor, id_sillon, google_event_id }, callback) {
     if (!nombre || !fecha || !hora) {
         return callback(new Error('Faltan datos obligatorios (nombre, fecha u hora)'));
     }
     const createdAt = new Date().toISOString();
+    const docName = doctor || 'Dra. Rosa Avila';
+    const sillonId = id_sillon || 'sillon_1';
 
     // 1. Verificar o crear el paciente
     db.get(`SELECT id FROM pacientes WHERE LOWER(nombre) = LOWER(?)`, [nombre.trim()], (err, pacienteRow) => {
         if (err) return callback(err);
 
-        const insertarCita = () => {
-            // 2. Evitar duplicados exactos si se hace clic dos veces en el correo
+        const insertarCita = (pacId) => {
+            // 2. Evitar duplicados exactos
             db.get(
-                `SELECT * FROM citas WHERE LOWER(nombre_paciente) = LOWER(?) AND fecha = ? AND hora = ?`,
-                [nombre.trim(), fecha, hora],
+                `SELECT * FROM citas WHERE (LOWER(nombre_paciente) = LOWER(?) AND fecha = ? AND hora = ?) OR (google_event_id IS NOT NULL AND google_event_id = ?)`,
+                [nombre.trim(), fecha, hora, google_event_id || 'NONE'],
                 (err2, citaExistente) => {
                     if (err2) return callback(err2);
                     if (citaExistente) {
@@ -160,13 +185,16 @@ function registrarCitaDesdeBot({ nombre, telefono, fecha, hora, motivo }, callba
                         nombre_paciente: nombre.trim(),
                         fecha,
                         hora,
-                        motivo: motivo || 'Valoración General',
-                        estado: 'pendiente',
+                        motivo: motivo || 'Valoración General (Asistente Virtual)',
+                        estado: 'programada',
+                        doctor: docName,
+                        id_sillon: sillonId,
+                        google_event_id: google_event_id || null,
                         createdAt
                     };
                     db.run(
-                        `INSERT INTO citas (id, nombre_paciente, fecha, hora, motivo, estado, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                        [nuevaCita.id, nuevaCita.nombre_paciente, nuevaCita.fecha, nuevaCita.hora, nuevaCita.motivo, nuevaCita.estado, nuevaCita.createdAt],
+                        `INSERT INTO citas (id, nombre_paciente, fecha, hora, motivo, estado, doctor, id_sillon, google_event_id, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [nuevaCita.id, nuevaCita.nombre_paciente, nuevaCita.fecha, nuevaCita.hora, nuevaCita.motivo, nuevaCita.estado, nuevaCita.doctor, nuevaCita.id_sillon, nuevaCita.google_event_id, nuevaCita.createdAt],
                         (err3) => {
                             if (err3) return callback(err3);
                             callback(null, { cita: nuevaCita, duplicada: false });
@@ -177,16 +205,17 @@ function registrarCitaDesdeBot({ nombre, telefono, fecha, hora, motivo }, callba
         };
 
         if (!pacienteRow) {
+            const nuevoPacId = generateId();
             db.run(
                 `INSERT INTO pacientes (id, nombre, telefono, correo, createdAt) VALUES (?, ?, ?, ?, ?)`,
-                [generateId(), nombre.trim(), telefono || '', '', createdAt],
+                [nuevoPacId, nombre.trim(), telefono || '', correo || '', createdAt],
                 (errPac) => {
                     if (errPac) return callback(errPac);
-                    insertarCita();
+                    insertarCita(nuevoPacId);
                 }
             );
         } else {
-            insertarCita();
+            insertarCita(pacienteRow.id);
         }
     });
 }
@@ -345,14 +374,35 @@ app.post('/api/:col', (req, res) => {
     data.id = data.id || generateId();
     data.createdAt = data.createdAt || new Date().toISOString();
 
-    const keys = Object.keys(data);
-    const placeholders = keys.map(() => '?').join(',');
-    const values = Object.values(data);
+    const insertRecord = () => {
+        const keys = Object.keys(data);
+        const placeholders = keys.map(() => '?').join(',');
+        const values = Object.values(data);
 
-    db.run(`INSERT INTO ${col} (${keys.join(',')}) VALUES (${placeholders})`, values, function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(data);
-    });
+        db.run(`INSERT INTO ${col} (${keys.join(',')}) VALUES (${placeholders})`, values, function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json(data);
+        });
+    };
+
+    // Si es una cita nueva, sincronizar con Google Calendar en segundo plano
+    if (col === 'citas' && data.fecha && data.hora && req.body.syncGoogle !== false) {
+        googleCalendar.createCalendarEvent({
+            summary: `Cita: ${data.nombre_paciente} - ${data.motivo || 'Consulta'}`,
+            description: `Paciente: ${data.nombre_paciente}\nDoctor(a): ${data.doctor || 'Dra. Rosa Avila'}\nSillón: ${data.id_sillon || 'Sillón 1'}\nEstado: ${data.estado || 'programada'}`,
+            fecha: data.fecha,
+            hora: data.hora
+        }).then(result => {
+            if (result && result.success && result.eventId) {
+                data.google_event_id = result.eventId;
+            }
+            insertRecord();
+        }).catch(() => {
+            insertRecord();
+        });
+    } else {
+        insertRecord();
+    }
 });
 
 // PUT (Actualizar registro)
@@ -379,6 +429,14 @@ app.put('/api/:col/:id', (req, res) => {
 app.delete('/api/:col/:id', (req, res) => {
     const col = req.params.col;
     if (!collections.includes(col)) return res.status(400).json({ error: 'Colección no válida' });
+
+    if (col === 'citas') {
+        db.get(`SELECT google_event_id FROM citas WHERE id = ?`, [req.params.id], (errCita, cita) => {
+            if (cita && cita.google_event_id) {
+                googleCalendar.deleteCalendarEvent(cita.google_event_id).catch(() => {});
+            }
+        });
+    }
 
     db.run(`DELETE FROM ${col} WHERE id = ?`, [req.params.id], function(err) {
         if (err) return res.status(500).json({ error: err.message });

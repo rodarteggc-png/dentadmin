@@ -108,3 +108,18 @@ Proveer una solución web en la nube para que clínicas y consultorios puedan ac
   - Criptografía: Migrado a `bcryptjs` (JavaScript puro) para eliminar incompatibilidades de compilación binaria C++ (`node-gyp`) en Amazon Linux Lambda.
   - Filesystem Guard: En serverless, `/uploads` redirige de forma segura a `/tmp/uploads` con bloque `try/catch` para evitar fallos de lectura/escritura `EROFS` en el contenedor de Lambda.
   - Diagnóstico de Conexión: Endpoint `/api/health` para auditar el estado de conexión con Turso Cloud.
+
+---
+
+## 📅 9. INTEGRACIÓN GOOGLE CALENDAR & ASISTDENTAL (ECOSISTEMA DRA. ROSA ÁVILA)
+* **Directiva de Negocio & Piloto Clínico:**
+  - Este despliegue actual en `dentadmin.vercel.app` es **exclusivo y personalizado** para la Dra. Rosa Ávila (`dra.avilaodontologia@gmail.com`) durante su periodo de validación clínica de 1 mes.
+  - **REGLA DE ESCALABILIDAD FUTURA:** Cuando el sistema pase a fase comercial / venta a terceros, este proyecto se mantendrá intacto (o se clonará en un repositorio nuevo `CareDent SaaS Standard`) donde se desacoplará el branding de la Dra. Rosa Ávila para soportar configuración multi-doctor / multi-tenant agnóstica.
+* **Integración Google Calendar (`googleCalendar.js`):**
+  - Conexión con `dra.avilaodontologia@gmail.com` vía Google Calendar API v3 (`googleapis`).
+  - Sincronización bidireccional:
+    1. **De DentaAdmin a Google Calendar:** Al crear (`POST /api/citas`) o cancelar (`DELETE /api/citas/:id`) una cita en DentaAdmin, se refleja de inmediato en el Google Calendar del celular de la doctora guardando `google_event_id`.
+    2. **De Google Calendar a DentaAdmin:** Endpoint `/api/calendar/sync` y botón visual en la interfaz de Citas para importar eventos nuevos desde Google Calendar asignándolos a la doctora y sillón principal.
+* **Enlace en Tiempo Real AsistDental ➔ DentaAdmin:**
+  - En `AsistDental/api/book.js`, cada cita reservada por el bot conversacional de IA dispara un `fetch('https://dentadmin.vercel.app/api/bot-cita')`.
+  - DentaAdmin crea automáticamente el expediente del paciente (si es nuevo) y asienta la cita en el calendario y sala de espera sin intervención humana.
