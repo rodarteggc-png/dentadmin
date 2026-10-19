@@ -20,11 +20,18 @@ app.use(cors());
 app.use(express.json());
 
 const staticDir = process.env.VERCEL ? process.cwd() : __dirname;
+const publicDir = path.join(staticDir, 'public');
+if (fs.existsSync(publicDir)) {
+    app.use(express.static(publicDir));
+}
 app.use(express.static(staticDir));
 
 // Ruta raíz garantizada
 app.get('/', (req, res) => {
-    res.sendFile(path.join(staticDir, 'index.html'));
+    const htmlPath = fs.existsSync(path.join(publicDir, 'index.html')) 
+        ? path.join(publicDir, 'index.html') 
+        : path.join(staticDir, 'index.html');
+    res.sendFile(htmlPath);
 });
 
 // Endpoint de diagnóstico de salud y conexión en la nube
