@@ -81,19 +81,60 @@ try {
     console.warn('Aviso: Directorio uploads omitido en filesystem de solo lectura:', err.message);
 }
 
+// Servir uploads estáticamente si existen en disco local
 app.use('/uploads', express.static(uploadDir));
+
+// Endpoint para servir imágenes/archivos guardados permanentemente en Turso Cloud
+app.get('/api/archivos/:id/ver', (req, res) => {
+    db.get('SELECT data, mime_type, original_name, filename FROM archivos WHERE id = ?', [req.params.id], (err, row) => {
+        if (err) return res.status(500).send('Error en base de datos');
+        if (!row) return res.status(404).send('Archivo no encontrado');
+
+        if (row.data) {
+            const buffer = Buffer.from(row.data, 'base64');
+            res.setHeader('Content-Type', row.mime_type || 'image/jpeg');
+            res.setHeader('Content-Length', buffer.length);
+            res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(row.original_name || 'archivo')}"`);
+            res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache navegador 24h
+            return res.send(buffer);
+        }
+
+        // Fallback para archivos legacy en disco
+        if (row.filename) {
+            const localPath = path.join(uploadDir, row.filename);
+            if (fs.existsSync(localPath)) return res.sendFile(localPath);
+        }
+        res.status(404).send('Contenido no disponible');
+    });
+});
+
+// Compatibilidad con rutas directas /uploads/:filename (busca en disco o en Turso)
+app.get('/uploads/:filename', (req, res) => {
+    const localFile = path.join(uploadDir, req.params.filename);
+    if (fs.existsSync(localFile)) {
+        return res.sendFile(localFile);
+    }
+    db.get('SELECT data, mime_type, original_name FROM archivos WHERE filename = ?', [req.params.filename], (err, row) => {
+        if (!err && row && row.data) {
+            const buffer = Buffer.from(row.data, 'base64');
+            res.setHeader('Content-Type', row.mime_type || 'image/jpeg');
+            res.setHeader('Content-Length', buffer.length);
+            res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(row.original_name || 'archivo')}"`);
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+            return res.send(buffer);
+        }
+        res.status(404).send('Archivo no encontrado');
+    });
+});
 
 // Colecciones válidas
 const collections = ['pacientes', 'citas', 'pagos', 'historia', 'presupuestos', 'gastos', 'inventario', 'tareas', 'odontogramas', 'archivos', 'recetas', 'usuarios', 'antecedentes', 'periodontogramas', 'ortodoncia', 'prestaciones', 'tratamientos_detalles', 'abonos_tratamientos', 'sillones', 'laboratorios_ordenes'];
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
+// Configuración de Multer en Memoria (Directo a Turso Cloud sin depender de /tmp efímero)
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 25 * 1024 * 1024 } // 25 MB máx (las imágenes optimizadas pesarán < 200 KB)
 });
-const upload = multer({ storage: storage });
 
 // --- Login ---
 app.post('/api/login', (req, res) => {
@@ -127,22 +168,30 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// --- Endpoint de Subida de Archivos ---
+// --- Endpoint de Subida de Archivos a la Nube (Turso Cloud) ---
 app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
     
     const paciente = req.body.paciente;
     if (!paciente) {
-        // Eliminar el archivo si no hay paciente
-        fs.unlinkSync(req.file.path);
         return res.status(400).json({ error: 'Falta especificar el paciente' });
     }
 
+    const fileId = generateId();
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const filename = uniqueSuffix + path.extname(req.file.originalname);
+    const base64Data = req.file.buffer.toString('base64');
+    const mimeType = req.file.mimetype || 'image/jpeg';
+    const sizeBytes = req.file.size || req.file.buffer.length;
+
     const archivoData = {
-        id: generateId(),
+        id: fileId,
         nombre_paciente: paciente,
         original_name: req.file.originalname,
-        filename: req.file.filename,
+        filename: filename,
+        data: base64Data,
+        mime_type: mimeType,
+        size_bytes: sizeBytes,
         createdAt: new Date().toISOString()
     };
 
@@ -152,7 +201,11 @@ app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => 
 
     db.run(`INSERT INTO archivos (${keys.join(',')}) VALUES (${placeholders})`, values, function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true, message: 'Archivo subido correctamente', archivo: archivoData });
+        
+        // Respuesta ligera: omitir 'data' en el JSON de confirmación
+        const resArchivo = { ...archivoData };
+        delete resArchivo.data;
+        res.json({ success: true, message: 'Archivo guardado permanentemente en la nube', archivo: resArchivo });
     });
 });
 
@@ -347,7 +400,12 @@ app.get('/api/:col', (req, res) => {
     const col = req.params.col;
     if (!collections.includes(col)) return res.status(400).json({ error: 'Colección no válida' });
     
-    db.all(`SELECT rowid, * FROM ${col}`, [], (err, rows) => {
+    // Si es archivos, omitir la columna 'data' pesada para carga instantánea
+    const query = col === 'archivos'
+        ? `SELECT id, nombre_paciente, original_name, filename, mime_type, size_bytes, createdAt FROM archivos`
+        : `SELECT rowid, * FROM ${col}`;
+
+    db.all(query, [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });

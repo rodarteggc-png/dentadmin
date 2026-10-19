@@ -167,6 +167,9 @@ if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
                 nombre_paciente TEXT,
                 original_name TEXT,
                 filename TEXT,
+                data TEXT,
+                mime_type TEXT,
+                size_bytes INTEGER,
                 createdAt TEXT
             )`);
             
@@ -318,6 +321,11 @@ if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
             db.run(`ALTER TABLE citas ADD COLUMN hora_llegada TEXT`, () => {});
             db.run(`ALTER TABLE citas ADD COLUMN hora_atencion TEXT`, () => {});
             db.run(`ALTER TABLE citas ADD COLUMN hora_fin TEXT`, () => {});
+
+            // Columnas para almacenamiento permanente de archivos/fotos en Turso Cloud
+            db.run(`ALTER TABLE archivos ADD COLUMN data TEXT`, () => {});
+            db.run(`ALTER TABLE archivos ADD COLUMN mime_type TEXT`, () => {});
+            db.run(`ALTER TABLE archivos ADD COLUMN size_bytes INTEGER`, () => {});
 
             // --- Órdenes de Laboratorio Dental (Opción 4 - Dentalink) ---
             db.run(`CREATE TABLE IF NOT EXISTS laboratorios_ordenes (

@@ -1121,19 +1121,71 @@ function loadGabinetePaciente() {
   
   archivos.forEach(archivo => {
     // Si no es imagen (ej. PDF), mostramos un icono genérico o el texto
-    const isImage = archivo.original_name.match(/\.(jpeg|jpg|gif|png|webp)$/i);
-    const src = isImage ? `/uploads/${archivo.filename}` : 'https://upload.wikimedia.org/wikipedia/commons/8/87/PDF_file_icon.svg';
+    const isImage = (archivo.mime_type && archivo.mime_type.startsWith('image/')) || 
+                    archivo.original_name.match(/\.(jpeg|jpg|gif|png|webp|bmp)$/i);
+    const viewUrl = `/api/archivos/${archivo.id}/ver`;
+    const src = isImage ? viewUrl : 'https://upload.wikimedia.org/wikipedia/commons/8/87/PDF_file_icon.svg';
+    const sizeText = archivo.size_bytes ? ` <span style="color:var(--text-muted,#64748b);font-size:10px;">(${Math.round(archivo.size_bytes / 1024)} KB)</span>` : '';
     
     gallery.innerHTML += `
       <div class="gabinete-item">
-        <a href="/uploads/${archivo.filename}" target="_blank">
-          <img src="${src}" class="gabinete-img" title="${archivo.original_name}" alt="Archivo">
+        <a href="${viewUrl}" target="_blank" title="Clic para ver o descargar">
+          <img src="${src}" class="gabinete-img" title="${escH(archivo.original_name)}" alt="Archivo" loading="lazy">
         </a>
-        <div class="gabinete-title">${escH(archivo.original_name)}</div>
+        <div class="gabinete-title">${escH(archivo.original_name)}${sizeText}</div>
         <div class="gabinete-date">${prettyDate((archivo.createdAt||todayStr()).split('T')[0])}</div>
         <button class="btn-secondary" onclick="deleteArchivo('${archivo.id}')" style="padding: 4px; font-size: 10px;">Eliminar</button>
       </div>
     `;
+  });
+}
+
+// Función de compresión ultraligera en navegador (Ahorra hasta 95% de espacio en Turso Cloud)
+function compressImageBeforeUpload(file, maxDimension = 1280, quality = 0.82) {
+  return new Promise((resolve) => {
+    if (!file.type || !file.type.startsWith('image/') || file.type === 'image/svg+xml' || file.type === 'image/gif') {
+      return resolve(file);
+    }
+    const reader = new FileReader();
+    reader.onerror = () => resolve(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => resolve(file);
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width <= maxDimension && height <= maxDimension && file.size < 250 * 1024) {
+          return resolve(file);
+        }
+        if (width > height) {
+          if (width > maxDimension) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          }
+        } else {
+          if (height > maxDimension) {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (!blob || blob.size >= file.size) {
+            return resolve(file);
+          }
+          const baseName = file.name.replace(/\.[^/.]+$/, "");
+          const optimizedFile = new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+          console.log(`[Optimización] ${(file.size/1024).toFixed(1)} KB -> ${(optimizedFile.size/1024).toFixed(1)} KB (${Math.round((1 - optimizedFile.size/file.size)*100)}% ahorro)`);
+          resolve(optimizedFile);
+        }, 'image/jpeg', quality);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
   });
 }
 
@@ -1144,14 +1196,17 @@ async function uploadFile(event) {
     return;
   }
   
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('paciente', currentGabinetePaciente);
-  
+  const rawFile = event.target.files[0];
+  if (!rawFile) return;
+
+  showToast('Optimizando imagen...', 'info');
+
   try {
+    const file = await compressImageBeforeUpload(rawFile);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('paciente', currentGabinetePaciente);
+    
     const res = await fetch('/api/upload', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
@@ -1160,13 +1215,15 @@ async function uploadFile(event) {
     const data = await res.json();
     
     if (res.ok) {
-      showToast('Archivo subido correctamente');
+      const ahorro = rawFile.size > file.size ? ` (Ahorro: ${Math.round((1 - file.size/rawFile.size)*100)}%)` : '';
+      showToast(`Archivo guardado en la nube${ahorro}`);
       await DB.init(); // Recargar DB para obtener el nuevo registro de la colección archivos
       renderGabinete();
     } else {
       showToast(data.error || 'Error al subir archivo', 'error');
     }
   } catch(e) {
+    console.error('Error al subir:', e);
     showToast('Error de red al subir', 'error');
   }
   
