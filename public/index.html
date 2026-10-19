@@ -418,7 +418,8 @@
         <div class="section-header">
           <h2 class="section-header__title">Recetas Médicas</h2>
           <div class="section-header__actions">
-            <button class="btn-primary" onclick="window.print()">Imprimir Receta (Ctrl+P)</button>
+            <button class="btn-primary" onclick="imprimirRecetaActual()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:6px;"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>Imprimir Receta (Ctrl+P)</button>
+            <button class="btn-secondary" onclick="enviarRecetaActualWhatsApp()" style="margin-left:8px; border-color:#25D366; color:#15803d;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right:6px;"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Enviar por WhatsApp</button>
           </div>
         </div>
         
@@ -439,8 +440,9 @@
                 <label>Medicamentos e Indicaciones</label>
                 <textarea id="receta-medicamentos" class="form-input" style="height: 150px;" placeholder="1. Paracetamol 500mg, tomar 1 tableta cada 8 hrs por 3 días.\n2. Amoxicilina..." oninput="updateRecetaPreview()"></textarea>
             </div>
-            <div style="grid-column: 1 / -1; display:flex; justify-content: flex-end;">
-                <button class="btn-primary" onclick="guardarReceta()">Guardar Receta</button>
+            <div style="grid-column: 1 / -1; display:flex; justify-content: flex-end; gap: 10px;">
+                <button class="btn-secondary" onclick="enviarRecetaActualWhatsApp()" style="border-color:#25D366; color:#15803d;">Enviar por WhatsApp</button>
+                <button class="btn-primary" onclick="guardarReceta()">Guardar e Imprimir</button>
             </div>
         </div>
 
@@ -453,32 +455,58 @@
         </div>
       </section>
 
-      <!-- FORMATO DE IMPRESIÓN (OCULTO EN PANTALLA) -->
+      <!-- FORMATO DE IMPRESIÓN OFICIAL Y LIMPIO DE RECETA MÉDICA -->
       <div id="print-area">
-          <div class="receta-header">
-              <div class="receta-logo">
-                  <img src="logo.jpg" alt="Logo Dra. Rosa Avila">
+          <div class="receta-card">
+              <!-- Encabezado Membretado Oficial -->
+              <div class="receta-header">
+                  <div class="receta-logo-box">
+                      <img src="logo.jpg" alt="Logo" class="receta-logo-img">
+                  </div>
+                  <div class="receta-header-info">
+                      <h2 class="receta-clinica-nombre">Clínica Dental Nube</h2>
+                      <h3 class="receta-doctor-nombre">Dra. Rosa Irasema Avila Acevedo</h3>
+                      <p class="receta-doctor-especialidad">Cirujano Dentista • Cédula Profesional: 15655338 | U.A.N.L.</p>
+                      <p class="receta-doctor-direccion">Distrito Domo, Av. Manuel Ordoñez 725, El Lechugal, Santa Catarina, N.L. C.P. 66376</p>
+                      <p class="receta-doctor-contacto">Teléfono / WhatsApp: 81 1221 9911 • dra.avilaodontologia@gmail.com</p>
+                  </div>
+                  <div class="receta-header-meta">
+                      <div class="receta-folio" id="print-receta-folio">FOLIO: REC-2026-001</div>
+                      <div class="receta-fecha-box"><strong>Fecha:</strong> <span id="print-fecha"></span></div>
+                  </div>
               </div>
-              <div class="receta-doctor">
-                  <h2>Dra. Rosa Irasema Avila Acevedo</h2>
-                  <p>Cirujano Dentista</p>
-                  <p>Cédula Profesional: 15655338 | U.A.N.L.</p>
+
+              <!-- Alerta Médica / Alergias del Paciente -->
+              <div id="print-receta-alerta" class="receta-alerta" style="display:none;"></div>
+
+              <!-- Ficha de Datos del Paciente -->
+              <div class="receta-paciente-box">
+                  <div><strong>Paciente:</strong> <span id="print-paciente" style="font-weight:700; color:#1e293b;"></span></div>
+                  <div><strong>Edad:</strong> <span id="print-edad">___</span></div>
+                  <div><strong>Peso:</strong> <span id="print-peso">___</span></div>
               </div>
-          </div>
-          <div class="receta-info">
-              <div><strong>Paciente:</strong> <span id="print-paciente"></span></div>
-              <div><strong>Fecha:</strong> <span id="print-fecha"></span></div>
-              <div><strong>Edad:</strong> <span id="print-edad"></span></div>
-              <div><strong>Peso:</strong> <span id="print-peso"></span></div>
-          </div>
-          <div class="receta-body" id="print-medicamentos">
-              <!-- Medicamentos aquí -->
-          </div>
-          <div class="receta-footer">
-              <div class="firma-linea"></div>
-              <p>Dra. Rosa Irasema Avila Acevedo</p>
-              <p>Av. Manuel Ordoñez 725, El Lechugal, Santa Catarina, N.L. C.P. 66376</p>
-              <p>Teléfono: 81 1221 9911</p>
+
+              <!-- Cuerpo de Prescripción (Rp.) -->
+              <div class="receta-rp-header">
+                  <span class="receta-rp-symbol">Rp.</span>
+                  <span class="receta-rp-title">Indicaciones Médicas y Posología</span>
+              </div>
+              <div class="receta-body" id="print-medicamentos">
+                  <!-- Medicamentos aquí -->
+              </div>
+
+              <!-- Pie de Receta y Firma Médica -->
+              <div class="receta-footer">
+                  <div class="receta-firma-wrapper">
+                      <div class="firma-linea"></div>
+                      <p class="firma-nombre">Dra. Rosa Irasema Avila Acevedo</p>
+                      <p class="firma-cedula">Cirujano Dentista • Cédula Profesional 15655338 (U.A.N.L.)</p>
+                  </div>
+                  <div class="receta-footer-note">
+                      <p style="margin:0; font-weight:600; color:#334155;">📍 Distrito Domo, Av. Manuel Ordoñez 725, El Lechugal, Santa Catarina, N.L.</p>
+                      <p style="margin:2px 0 0 0;">📞 Urgencias y Citas / WhatsApp: 81 1221 9911</p>
+                  </div>
+              </div>
           </div>
       </div>
 
@@ -709,7 +737,7 @@
                       <h2 style="color: var(--blue); margin: 0; font-size: 24px; font-weight: 700;">CareDent Nube • Clínica Dental</h2>
                       <p style="margin: 3px 0 0 0; color: #1f2937; font-size: 13px; font-weight: 600;">Dra. Rosa Irasema Avila Acevedo — Cirujano Dentista</p>
                       <p style="margin: 2px 0 0 0; color: #4b5563; font-size: 12px;">Cédula Profesional: 15655338 | Odontología Integral</p>
-                      <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 11px;">Av. Manuel Ordoñez 725, El Lechugal • WhatsApp: 81 1221 9911 • dra.avilaodontologia@gmail.com</p>
+                      <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 11px;">Distrito Domo, Av. Manuel Ordoñez 725, El Lechugal, Santa Catarina, N.L. C.P. 66376 • WhatsApp: 81 1221 9911 • dra.avilaodontologia@gmail.com</p>
                   </div>
               </div>
               <div style="text-align: right; font-size: 13px;">
@@ -727,7 +755,7 @@
               </div>
               <div style="text-align: right;">
                   <p style="margin: 0; color: #4b5563;"><strong>Doctor(a) Responsable:</strong> Dra. Rosa Avila</p>
-                  <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 11px;">Plan Clínico Personalizado</p>
+                  <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 11px;">Plan Clínico Personalizado • Distrito Domo</p>
               </div>
           </div>
 
@@ -754,7 +782,7 @@
                   <strong style="color: #111827; display: block; margin-bottom: 4px; font-size: 12px;">💳 Formas de Pago y Condiciones:</strong>
                   <ul style="margin: 0; padding-left: 16px; line-height: 1.5;">
                       <li>Efectivo, Tarjeta de Débito/Crédito y Transferencia SPEI.</li>
-                      <li>Planes de abono por cita o por fase clínica.</li>
+                      <li>Planes de abono por cita o por fase clínica en Distrito Domo.</li>
                       <li>Precios sujetos a variación si se detectan condiciones clínicas imprevistas durante el tratamiento.</li>
                   </ul>
               </div>
@@ -778,7 +806,7 @@
           <!-- LÍNEAS DE FIRMA LEGAL Y CONSENTIMIENTO -->
           <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
               <p style="font-size: 10px; color: #6b7280; text-align: justify; margin-bottom: 40px; line-height: 1.4;">
-                  Declaro que he sido informado detalladamente sobre el diagnóstico, plan de tratamiento propuesto, alternativas viables y los costos estipulados en el presente presupuesto. Doy mi conformidad para el inicio del tratamiento bajo las condiciones acordadas.
+                  Declaro que he sido informado detalladamente sobre el diagnóstico, plan de tratamiento propuesto, alternativas viables y los costos estipulados en el presente presupuesto. Doy mi conformidad para el inicio del tratamiento bajo las condiciones acordadas en Distrito Domo, Santa Catarina, N.L.
               </p>
               
               <div style="display: flex; justify-content: space-around; text-align: center; margin-top: 30px;">
@@ -802,7 +830,7 @@
                   <img src="logo.jpg" alt="Logo" style="width: 100px; height: 100px; object-fit: contain; border-radius: 50%;">
                   <div>
                       <h2 style="color: var(--blue); margin: 0; font-size: 28px;">Ticket de Pago</h2>
-                      <p style="margin: 5px 0 0 0; color: #4b5563; font-size: 14px;">Clínica Dental Dra. Rosa Avila<br>Av. Manuel Ordoñez 725, El Lechugal<br><strong>WhatsApp/Tel:</strong> 81 1221 9911<br><strong>Correo:</strong> dra.avilaodontologia@gmail.com</p>
+                      <p style="margin: 5px 0 0 0; color: #4b5563; font-size: 14px;">Clínica Dental Dra. Rosa Avila<br>Distrito Domo, Av. Manuel Ordoñez 725, El Lechugal, Santa Catarina, N.L.<br><strong>WhatsApp/Tel:</strong> 81 1221 9911<br><strong>Correo:</strong> dra.avilaodontologia@gmail.com</p>
                   </div>
               </div>
               <div style="text-align: right; font-size: 14px;">
@@ -825,7 +853,7 @@
           </div>
           
           <div style="text-align: center; color: #6b7280; font-size: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-              <p>¡Gracias por su pago!</p>
+              <p>¡Gracias por su pago! • Clínica Dental Nube (Distrito Domo)</p>
           </div>
       </div>
 
@@ -836,7 +864,7 @@
                   <img src="logo.jpg" alt="Logo" style="width: 100px; height: 100px; object-fit: contain; border-radius: 50%;">
                   <div>
                       <h2 style="color: var(--blue); margin: 0; font-size: 28px;">Nota de Tratamiento</h2>
-                      <p style="margin: 5px 0 0 0; color: #4b5563; font-size: 14px;">Clínica Dental Dra. Rosa Avila<br>Av. Manuel Ordoñez 725, El Lechugal<br><strong>WhatsApp/Tel:</strong> 81 1221 9911</p>
+                      <p style="margin: 5px 0 0 0; color: #4b5563; font-size: 14px;">Clínica Dental Dra. Rosa Avila<br>Distrito Domo, Av. Manuel Ordoñez 725, El Lechugal, Santa Catarina, N.L.<br><strong>WhatsApp/Tel:</strong> 81 1221 9911</p>
                   </div>
               </div>
               <div style="text-align: right; font-size: 14px;">

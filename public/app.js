@@ -1254,17 +1254,53 @@ function renderRecetas() {
   if (tbody) {
     tbody.innerHTML = '';
     const recetas = DB.get('recetas').slice().reverse();
+    const printIconSmall = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>';
+    const waIconSmall = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+    
     recetas.forEach(r => {
       tbody.innerHTML += `<tr>
         <td>${prettyDate(r.fecha)}</td>
         <td><strong>${escH(r.nombre_paciente)}</strong></td>
         <td>${escH(r.medicamentos).substring(0, 50)}...</td>
         <td>
-          <button class="btn-secondary" onclick="reimprimirReceta('${r.id}')">Imprimir</button>
-          <button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('recetas','${r.id}')">${delIcon}</button>
+          <div class="td-actions">
+            <button class="btn-secondary" onclick="reimprimirReceta('${r.id}')" title="Imprimir Receta">${printIconSmall}Imprimir</button>
+            <button class="btn-icon btn-icon--whatsapp" onclick="enviarRecetaWhatsApp('${r.id}')" title="Enviar por WhatsApp">${waIconSmall}</button>
+            <button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('recetas','${r.id}')">${delIcon}</button>
+          </div>
         </td>
       </tr>`;
     });
+  }
+}
+
+function aplicarDatosRecetaImpresion({ paciente, fecha, edad, peso, medicamentos, id }) {
+  document.getElementById('print-paciente').textContent = paciente || '_________________';
+  document.getElementById('print-fecha').textContent = prettyDate(fecha || todayStr());
+  document.getElementById('print-edad').textContent = edad || '___';
+  document.getElementById('print-peso').textContent = peso || '___';
+  document.getElementById('print-medicamentos').textContent = medicamentos || '';
+  
+  const folioEl = document.getElementById('print-receta-folio');
+  if (folioEl) {
+    const sufijo = id ? String(id).slice(-4).toUpperCase() : String(Math.floor(1000 + Math.random() * 9000));
+    folioEl.textContent = `FOLIO: REC-${new Date().getFullYear()}-${sufijo}`;
+  }
+  
+  // Alertas Médicas desde antecedentes
+  const alertaEl = document.getElementById('print-receta-alerta');
+  if (alertaEl) {
+    const ant = DB.get('antecedentes').find(a => a.nombre_paciente === paciente);
+    const avisos = [];
+    if (ant?.alergias && ant.alergias.trim()) avisos.push(`Alergias: ${ant.alergias.trim()}`);
+    if (ant?.alertas_medicas && ant.alertas_medicas.trim()) avisos.push(`Condición: ${ant.alertas_medicas.trim()}`);
+    if (avisos.length > 0) {
+      alertaEl.style.display = 'block';
+      alertaEl.innerHTML = `<strong>⚠️ ALERTA MÉDICA:</strong> ${escH(avisos.join(' • '))}`;
+    } else {
+      alertaEl.style.display = 'none';
+      alertaEl.innerHTML = '';
+    }
   }
 }
 
@@ -1273,54 +1309,91 @@ function updateRecetaPreview() {
   const edad = document.getElementById('receta-edad').value;
   const peso = document.getElementById('receta-peso').value;
   const medicamentos = document.getElementById('receta-medicamentos').value;
-  
-  document.getElementById('print-paciente').textContent = paciente || '_________________';
-  document.getElementById('print-fecha').textContent = new Date().toLocaleDateString('es-MX');
-  document.getElementById('print-edad').textContent = edad || '___';
-  document.getElementById('print-peso').textContent = peso || '___';
-  document.getElementById('print-medicamentos').textContent = medicamentos || '';
+  aplicarDatosRecetaImpresion({ paciente, fecha: todayStr(), edad, peso, medicamentos });
+}
+
+function imprimirRecetaActual() {
+  const paciente = document.getElementById('receta-paciente').value;
+  if (!paciente) return showToast('Selecciona un paciente primero', 'error');
+  const edad = document.getElementById('receta-edad').value;
+  const peso = document.getElementById('receta-peso').value;
+  const medicamentos = document.getElementById('receta-medicamentos').value;
+  if (!medicamentos.trim()) return showToast('Escribe los medicamentos e indicaciones', 'error');
+
+  aplicarDatosRecetaImpresion({ paciente, fecha: todayStr(), edad, peso, medicamentos });
+  document.body.classList.add('printing-receta');
+  window.print();
+  setTimeout(() => document.body.classList.remove('printing-receta'), 1000);
 }
 
 function guardarReceta() {
   const paciente = document.getElementById('receta-paciente').value;
   if (!paciente) return showToast('Selecciona un paciente', 'error');
+  const edad = document.getElementById('receta-edad').value;
+  const peso = document.getElementById('receta-peso').value;
+  const medicamentos = document.getElementById('receta-medicamentos').value;
+  if (!medicamentos.trim()) return showToast('Escribe los medicamentos', 'error');
   
   const payload = {
     nombre_paciente: paciente,
-    edad: document.getElementById('receta-edad').value,
-    peso: document.getElementById('receta-peso').value,
-    medicamentos: document.getElementById('receta-medicamentos').value,
+    edad,
+    peso,
+    medicamentos,
     fecha: todayStr()
   };
   
   DB.add('recetas', payload);
   showToast('Receta guardada exitosamente', 'success');
   
+  aplicarDatosRecetaImpresion({ paciente, fecha: todayStr(), edad, peso, medicamentos });
+  document.body.classList.add('printing-receta');
+  window.print();
+  setTimeout(() => document.body.classList.remove('printing-receta'), 1000);
+  
   // Limpiar campos
   document.getElementById('receta-edad').value = '';
   document.getElementById('receta-peso').value = '';
   document.getElementById('receta-medicamentos').value = '';
   
-  // Imprimir
-  window.print();
-  
-  setTimeout(() => renderRecetas(), 100);
+  setTimeout(() => renderRecetas(), 200);
 }
 
 function reimprimirReceta(id) {
   const r = DB.get('recetas').find(x => x.id === id);
   if (!r) return;
-  
-  document.getElementById('print-paciente').textContent = r.nombre_paciente;
-  document.getElementById('print-fecha').textContent = prettyDate(r.fecha);
-  document.getElementById('print-edad').textContent = r.edad || '___';
-  document.getElementById('print-peso').textContent = r.peso || '___';
-  document.getElementById('print-medicamentos').textContent = r.medicamentos || '';
-  
+  aplicarDatosRecetaImpresion({ paciente: r.nombre_paciente, fecha: r.fecha, edad: r.edad, peso: r.peso, medicamentos: r.medicamentos, id: r.id });
+  document.body.classList.add('printing-receta');
   window.print();
+  setTimeout(() => document.body.classList.remove('printing-receta'), 1000);
+}
+
+function enviarRecetaWhatsApp(id) {
+  const r = DB.get('recetas').find(x => x.id === id);
+  if (!r) return;
+  enviarMensajeRecetaPaciente(r.nombre_paciente, r.medicamentos, r.fecha);
+}
+
+function enviarRecetaActualWhatsApp() {
+  const paciente = document.getElementById('receta-paciente').value;
+  if (!paciente) return showToast('Selecciona un paciente', 'error');
+  const medicamentos = document.getElementById('receta-medicamentos').value;
+  if (!medicamentos.trim()) return showToast('Escribe los medicamentos', 'error');
+  enviarMensajeRecetaPaciente(paciente, medicamentos, todayStr());
+}
+
+function enviarMensajeRecetaPaciente(nombrePaciente, medicamentos, fecha) {
+  const pac = DB.get('pacientes').find(p => p.nombre === nombrePaciente);
+  let telefono = pac?.telefono || '';
+  if (!telefono) {
+    const inputTel = prompt(`El paciente ${nombrePaciente} no tiene teléfono registrado. Ingrésalo a continuación (10 dígitos):`);
+    if (!inputTel) return;
+    telefono = inputTel;
+  }
+  telefono = telefono.replace(/\D/g, '');
+  if (telefono.length === 10) telefono = '52' + telefono;
   
-  // Restaurar el preview al estado actual del form
-  updateRecetaPreview();
+  const msg = `Hola ${nombrePaciente}, le saluda la Dra. Rosa Ávila de Clínica Dental Nube (Distrito Domo).\n\nLe comparto su receta médica emitida el ${prettyDate(fecha)}:\n\n${medicamentos}\n\n📍 Distrito Domo, Av. Manuel Ordoñez 725, El Lechugal, Santa Catarina, N.L.\n📞 Citas / Urgencias: 81 1221 9911\n\nCualquier duda con su medicación, quedamos a sus órdenes.`;
+  window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 /* ─── 4. NAVEGACIÓN Y RENDER ─── */
@@ -1861,7 +1934,8 @@ function renderPresupuestos(){
       
       return `<tr><td><strong>${escH(p.nombre_paciente)}</strong></td><td>${trSummary}</td><td style="font-weight:700; vertical-align:top;">${fmtMoney(p.monto)}</td><td><span class="tag tag--${p.estado}">${p.estado}</span></td><td>${prettyDate(p.fecha)}</td><td><div class="td-actions">
         ${p.estado==='pendiente' ? `<button class="btn-icon btn-icon--green" title="Aprobar" onclick="quickUpdate('presupuestos','${p.id}',{estado:'aprobado'})">${checkIcon}</button>` : ''}
-        <button class="btn-icon" title="Imprimir" onclick="imprimirPresupuesto('${p.id}')" style="color:var(--gray-600)">${printIcon}</button>
+        <button class="btn-icon" title="Imprimir Presupuesto" onclick="imprimirPresupuesto('${p.id}')" style="color:var(--gray-600)">${printIcon}</button>
+        <button class="btn-icon btn-icon--whatsapp" title="Enviar Presupuesto por WhatsApp" onclick="enviarPresupuestoWhatsApp('${p.id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></button>
         <button class="btn-icon" title="Editar" onclick="openModal('presupuesto',DB.find('presupuestos','${p.id}'))">${editIcon}</button>
         <button class="btn-icon btn-icon--danger" title="Eliminar" onclick="quickDelete('presupuestos','${p.id}')">${delIcon}</button>
       </div></td></tr>`;
@@ -2935,6 +3009,37 @@ function imprimirPresupuestoDesdeOdonto() {
     return;
   }
   imprimirPresupuesto(null);
+}
+
+function enviarPresupuestoWhatsApp(id) {
+  const p = DB.get('presupuestos').find(x => String(x.id) === String(id));
+  if (!p) return showToast('Presupuesto no encontrado', 'error');
+  
+  const pac = DB.get('pacientes').find(pac => pac.nombre === p.nombre_paciente);
+  let telefono = pac?.telefono || '';
+  if (!telefono) {
+    const inputTel = prompt(`El paciente ${p.nombre_paciente} no tiene teléfono registrado. Ingrésalo a continuación (10 dígitos):`);
+    if (!inputTel) return;
+    telefono = inputTel;
+  }
+  telefono = telefono.replace(/\D/g, '');
+  if (telefono.length === 10) telefono = '52' + telefono;
+
+  let conceptos = '';
+  try {
+    const parsed = JSON.parse(p.tratamientos);
+    if (Array.isArray(parsed)) {
+      conceptos = parsed.map(i => `• ${i.concepto}: ${fmtMoney(i.costo)}`).join('\n');
+    } else {
+      conceptos = `• ${p.tratamientos}: ${fmtMoney(p.monto)}`;
+    }
+  } catch(e) {
+    conceptos = `• ${p.tratamientos}: ${fmtMoney(p.monto)}`;
+  }
+
+  const folio = `PRES-${String(p.id).slice(-6).toUpperCase()}`;
+  const msg = `Hola ${p.nombre_paciente}, le saluda la Dra. Rosa Ávila de Clínica Dental Nube (Distrito Domo).\n\nLe comparto el resumen de su Presupuesto Dental (${folio}):\n\n${conceptos}\n\n💰 Total del Plan: ${fmtMoney(p.monto)}\n📅 Vigencia: 30 días naturales.\n💳 Formas de pago: Efectivo, Tarjeta y Transferencia SPEI.\n\n📍 Ubicación: Distrito Domo, Av. Manuel Ordoñez 725, El Lechugal, Santa Catarina, N.L.\n📞 Citas / WhatsApp: 81 1221 9911\n\n¿Le gustaría que agendemos su primera cita para comenzar?`;
+  window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 function imprimirTicketPago(id) {
