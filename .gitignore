@@ -5,3 +5,4 @@ dentadmin.sqlite
 dist/
 uploads/
 .env
+Pass/

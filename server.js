@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const multer = require('multer');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 const helmet = require('helmet');
 
@@ -19,21 +19,40 @@ const SECRET_KEY = process.env.SECRET_KEY || 'dentadmin_secret_super_seguro';
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json());
-app.use(express.static(__dirname));
+
+const staticDir = process.env.VERCEL ? process.cwd() : __dirname;
+app.use(express.static(staticDir));
+
+// Ruta raíz garantizada
+app.get('/', (req, res) => {
+    res.sendFile(path.join(staticDir, 'index.html'));
+});
+
+// Endpoint de diagnóstico de salud y conexión en la nube
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        database: db.isTurso ? 'turso_cloud' : (process.env.VERCEL ? 'turso_missing' : 'sqlite_local'),
+        hasTursoUrl: Boolean(process.env.TURSO_DATABASE_URL),
+        hasTursoToken: Boolean(process.env.TURSO_AUTH_TOKEN),
+        time: new Date().toISOString()
+    });
+});
+
 // Servir la carpeta uploads estáticamente para ver las imágenes
 const dataPath = process.env.CAREDENT_DATA_PATH || __dirname;
-app.use('/uploads', express.static(path.join(dataPath, 'uploads')));
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const uploadDir = isServerless ? path.join('/tmp', 'uploads') : path.join(dataPath, 'uploads');
 
-const generateId = () => crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
-
-// Colecciones válidas
-const collections = ['pacientes', 'citas', 'pagos', 'historia', 'presupuestos', 'gastos', 'inventario', 'tareas', 'odontogramas', 'archivos', 'recetas', 'usuarios', 'antecedentes', 'periodontogramas', 'ortodoncia', 'prestaciones', 'tratamientos_detalles', 'abonos_tratamientos', 'sillones', 'laboratorios_ordenes'];
-
-// Configuración de Multer (Almacenamiento de fotos)
-const uploadDir = path.join(dataPath, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
+try {
+    if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+    }
+} catch (err) {
+    console.warn('Aviso: Directorio uploads omitido en filesystem de solo lectura:', err.message);
 }
+
+app.use('/uploads', express.static(uploadDir));
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
     filename: (req, file, cb) => {

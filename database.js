@@ -1,5 +1,5 @@
 const path = require('path');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 let db;
 
@@ -46,6 +46,15 @@ if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
         }
     };
     console.log('✅ Base de datos Turso Cloud lista y enlazada.');
+} else if (process.env.VERCEL) {
+    console.error('⚠️ ALERTA: No se detectó TURSO_DATABASE_URL ni TURSO_AUTH_TOKEN en Vercel.');
+    db = {
+        isTurso: false,
+        all: (s, p, cb) => (cb || p)(new Error('Base de datos en la nube no configurada en Vercel. Verifica Environment Variables.')),
+        get: (s, p, cb) => (cb || p)(new Error('Base de datos en la nube no configurada en Vercel. Verifica Environment Variables.')),
+        run: (s, p, cb) => (cb || p)(new Error('Base de datos en la nube no configurada en Vercel. Verifica Environment Variables.')),
+        serialize: fn => fn && fn()
+    };
 } else {
     const sqlite3 = require('sqlite3').verbose();
     const dbPath = path.resolve(__dirname, 'dentadmin.sqlite');
