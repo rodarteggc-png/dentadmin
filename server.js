@@ -446,6 +446,15 @@ app.post('/api/seed', (req, res) => {
     });
 });
 
+// Middleware global de captura de errores (Requerido en Express 5 para Vercel Serverless)
+app.use((err, req, res, next) => {
+    console.error('⚠️ Error capturado en Express:', err);
+    res.status(500).json({
+        error: 'Error interno del servidor',
+        message: err.message
+    });
+});
+
 if (require.main === module) {
     app.listen(PORT, () => {
         console.log(`Servidor DentAdmin (Backend Real) corriendo en http://localhost:${PORT}`);

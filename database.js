@@ -46,13 +46,13 @@ if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
         }
     };
     console.log('✅ Base de datos Turso Cloud lista y enlazada.');
-} else if (process.env.VERCEL) {
-    console.error('⚠️ ALERTA: No se detectó TURSO_DATABASE_URL ni TURSO_AUTH_TOKEN en Vercel.');
+} else if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === 'production') {
+    console.error('⚠️ ALERTA: No se detectó TURSO_DATABASE_URL ni TURSO_AUTH_TOKEN en entorno Serverless/Vercel.');
     db = {
         isTurso: false,
-        all: (s, p, cb) => (cb || p)(new Error('Base de datos en la nube no configurada en Vercel. Verifica Environment Variables.')),
-        get: (s, p, cb) => (cb || p)(new Error('Base de datos en la nube no configurada en Vercel. Verifica Environment Variables.')),
-        run: (s, p, cb) => (cb || p)(new Error('Base de datos en la nube no configurada en Vercel. Verifica Environment Variables.')),
+        all: (s, p, cb) => (cb || p)(new Error('Base de datos en la nube no configurada en Vercel. Por favor configura TURSO_DATABASE_URL y TURSO_AUTH_TOKEN en Vercel Dashboard.')),
+        get: (s, p, cb) => (cb || p)(new Error('Base de datos en la nube no configurada en Vercel. Por favor configura TURSO_DATABASE_URL y TURSO_AUTH_TOKEN en Vercel Dashboard.')),
+        run: (s, p, cb) => (cb || p)(new Error('Base de datos en la nube no configurada en Vercel. Por favor configura TURSO_DATABASE_URL y TURSO_AUTH_TOKEN en Vercel Dashboard.')),
         serialize: fn => fn && fn()
     };
 } else {
