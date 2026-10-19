@@ -10,10 +10,13 @@ const fs = require('fs');
 const multer = require('multer');
 const bcrypt = require('bcrypt');
 
+const helmet = require('helmet');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SECRET_KEY = process.env.SECRET_KEY || 'dentadmin_secret_super_seguro';
 
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
@@ -424,6 +427,10 @@ app.post('/api/seed', (req, res) => {
     });
 });
 
-app.listen(PORT, () => {
-    console.log(`Servidor DentAdmin (Backend Real) corriendo en http://localhost:${PORT}`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Servidor DentAdmin (Backend Real) corriendo en http://localhost:${PORT}`);
+    });
+}
+
+module.exports = app;

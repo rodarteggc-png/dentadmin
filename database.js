@@ -1,15 +1,61 @@
-const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const bcrypt = require('bcrypt');
 
-const dbPath = path.resolve(__dirname, 'dentadmin.sqlite');
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-        console.error('Error abriendo la base de datos', err.message);
-    } else {
-        console.log('Conectado a la base de datos SQLite.');
-        db.serialize(() => {
-            db.run(`CREATE TABLE IF NOT EXISTS pacientes (
+let db;
+
+if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
+    const { createClient } = require('@libsql/client');
+    console.log('⚡ Conectando a Turso Cloud Database...');
+    const turso = createClient({
+        url: process.env.TURSO_DATABASE_URL,
+        authToken: process.env.TURSO_AUTH_TOKEN
+    });
+
+    db = {
+        isTurso: true,
+        all(sql, params, callback) {
+            if (typeof params === 'function') { callback = params; params = []; }
+            turso.execute({ sql, args: params || [] })
+                .then(res => callback(null, res.rows))
+                .catch(err => callback(err));
+        },
+        get(sql, params, callback) {
+            if (typeof params === 'function') { callback = params; params = []; }
+            turso.execute({ sql, args: params || [] })
+                .then(res => callback(null, res.rows[0] || null))
+                .catch(err => callback(err));
+        },
+        run(sql, params, callback) {
+            if (typeof params === 'function') { callback = params; params = []; }
+            turso.execute({ sql, args: params || [] })
+                .then(res => {
+                    if (callback) {
+                        const ctx = {
+                            changes: res.rowsAffected,
+                            lastID: res.lastInsertRowid
+                        };
+                        callback.call(ctx, null);
+                    }
+                })
+                .catch(err => {
+                    if (callback) callback(err);
+                });
+        },
+        serialize(fn) {
+            if (fn) fn();
+        }
+    };
+    console.log('✅ Base de datos Turso Cloud lista y enlazada.');
+} else {
+    const sqlite3 = require('sqlite3').verbose();
+    const dbPath = path.resolve(__dirname, 'dentadmin.sqlite');
+    db = new sqlite3.Database(dbPath, (err) => {
+        if (err) {
+            console.error('Error abriendo la base de datos', err.message);
+        } else {
+            console.log('Conectado a la base de datos SQLite local.');
+            db.serialize(() => {
+                db.run(`CREATE TABLE IF NOT EXISTS pacientes (
                 id TEXT PRIMARY KEY,
                 nombre TEXT NOT NULL,
                 telefono TEXT,
@@ -260,6 +306,9 @@ const db = new sqlite3.Database(dbPath, (err) => {
             db.run(`ALTER TABLE citas ADD COLUMN id_sillon TEXT DEFAULT 'sillon_1'`, () => {});
             db.run(`ALTER TABLE citas ADD COLUMN nombre_sillon TEXT DEFAULT 'Sillón 1'`, () => {});
             db.run(`ALTER TABLE citas ADD COLUMN doctor TEXT DEFAULT 'Dra. Rosa Avila'`, () => {});
+            db.run(`ALTER TABLE citas ADD COLUMN hora_llegada TEXT`, () => {});
+            db.run(`ALTER TABLE citas ADD COLUMN hora_atencion TEXT`, () => {});
+            db.run(`ALTER TABLE citas ADD COLUMN hora_fin TEXT`, () => {});
 
             // --- Órdenes de Laboratorio Dental (Opción 4 - Dentalink) ---
             db.run(`CREATE TABLE IF NOT EXISTS laboratorios_ordenes (
@@ -350,5 +399,6 @@ const db = new sqlite3.Database(dbPath, (err) => {
         });
     }
 });
+}
 
 module.exports = db;

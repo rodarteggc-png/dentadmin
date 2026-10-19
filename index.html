@@ -171,18 +171,41 @@
             <button class="btn-primary" onclick="openModal('cita')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nueva Cita</button>
           </div>
         </div>
-        <div class="filter-tabs" id="citas-sillon-tabs" style="margin-bottom: 15px;">
-          <button class="filter-tab filter-tab--active" onclick="filterCitasSillon(this, 'all')">Todos los Sillones</button>
-          <button class="filter-tab" onclick="filterCitasSillon(this, 'sillon_1')"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;margin-right:6px;"></span>Sillón 1 (Principal)</button>
-          <button class="filter-tab" onclick="filterCitasSillon(this, 'sillon_2')"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;margin-right:6px;"></span>Sillón 2 (Quirúrgico)</button>
-          <button class="filter-tab" onclick="filterCitasSillon(this, 'sillon_3')"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b;margin-right:6px;"></span>Sillón 3 (Odonto / Orto)</button>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+          <div class="filter-tabs" id="citas-vista-tabs">
+            <button class="filter-tab filter-tab--active" id="btn-vista-calendar" onclick="switchCitasView('calendario', this)">📅 Calendario</button>
+            <button class="filter-tab" id="btn-vista-espera" onclick="switchCitasView('espera', this)">🛋️ Sala de Espera / Flujo <span class="badge" id="badge-sala-espera-count" style="margin-left: 6px; background:#f59e0b; color:#fff; display:none;">0</span></button>
+          </div>
+          
+          <div class="filter-tabs" id="citas-sillon-tabs">
+            <button class="filter-tab filter-tab--active" onclick="filterCitasSillon(this, 'all')">Todos los Sillones</button>
+            <button class="filter-tab" onclick="filterCitasSillon(this, 'sillon_1')"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;margin-right:6px;"></span>Sillón 1 (Principal)</button>
+            <button class="filter-tab" onclick="filterCitasSillon(this, 'sillon_2')"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;margin-right:6px;"></span>Sillón 2 (Quirúrgico)</button>
+            <button class="filter-tab" onclick="filterCitasSillon(this, 'sillon_3')"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b;margin-right:6px;"></span>Sillón 3 (Odonto / Orto)</button>
+          </div>
         </div>
         
-        <div style="display: flex; gap: 20px; align-items: flex-start;">
+        <!-- VISTA CALENDARIO -->
+        <div id="citas-calendario-container" style="display: flex; gap: 20px; align-items: flex-start;">
           <div style="width: 280px; flex-shrink: 0; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
             <div id="mini-calendar" style="font-size: 0.85em;"></div>
           </div>
           <div id="citas-calendar" style="flex-grow: 1; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); min-width: 0;"></div>
+        </div>
+
+        <!-- VISTA SALA DE ESPERA / FLUJO HOY (ESTILO DENTALINK) -->
+        <div id="citas-sala-espera-container" style="display: none; flex-direction: column; gap: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 14px 20px; border-radius: 12px; border: 1px solid var(--gray-200);">
+            <div>
+              <h3 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--gray-900);">Monitor de Recepción y Flujo de Pacientes</h3>
+              <p style="margin: 2px 0 0 0; font-size: 12px; color: var(--gray-500);">Seguimiento de tiempos de espera y atención en sillón para el día de hoy (<span id="sala-espera-fecha-label"></span>)</p>
+            </div>
+            <button class="btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="renderSalaEspera()">🔄 Actualizar Monitor</button>
+          </div>
+          
+          <div id="sala-espera-kanban" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+            <!-- Renderizado dinámicamente: Por Llegar, En Sala de Espera, En Sillón, Finalizadas -->
+          </div>
         </div>
       </section>
 
@@ -222,9 +245,16 @@
         <!-- TAB: ODONTOGRAMA Y EVOLUCIÓN (Estilo Dentalink) -->
         <div id="hist-tab-odontograma" style="display: flex; gap: 20px; width: 100%;">
         <div class="odontograma-panel" style="flex: 1.1;">
-          <div class="odontograma-header">
-            <h3>Odontograma Interactivo FDI</h3>
-            <div class="odontograma-leyenda">
+          <div class="odontograma-header" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <h3 style="margin:0;">Odontograma Interactivo FDI</h3>
+              <div class="filter-tabs" id="odonto-mode-tabs" style="margin: 0;">
+                <button class="filter-tab filter-tab--active" id="btn-odonto-adulto" onclick="setOdontoMode('adulto', this)">🦷 Adulto (32)</button>
+                <button class="filter-tab" id="btn-odonto-infantil" onclick="setOdontoMode('infantil', this)">👶 Infantil / Deciduo (20)</button>
+                <button class="filter-tab" id="btn-odonto-mixto" onclick="setOdontoMode('mixto', this)">🔄 Mixto</button>
+              </div>
+            </div>
+            <div class="odontograma-leyenda" style="margin-top: 0; flex-wrap: wrap;">
               <span class="leyenda-item"><span class="color-box color-caries"></span>Planificado / Presupuesto (Rojo)</span>
               <span class="leyenda-item"><span class="color-box color-resina"></span>Realizado / Sano (Azul)</span>
               <span class="leyenda-item"><span class="color-box color-corona"></span>Corona / Prótesis</span>
@@ -239,13 +269,17 @@
         <div class="historia-panel" style="flex: 1; display: flex; flex-direction: column; gap: 16px;">
           <!-- PLAN DE TRATAMIENTO & PRESUPUESTO EN VIVO -->
           <div style="background: var(--bg-card); padding: 16px; border-radius: var(--radius); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
               <div>
                 <h4 style="margin: 0; font-size: 15px; font-weight: 600;">📋 Plan de Tratamiento & Presupuesto</h4>
                 <p style="font-size: 11px; color: var(--gray-500); margin-top: 2px;">Generado automáticamente desde el odontograma</p>
               </div>
               <div style="display: flex; align-items: center; gap: 8px;">
                 <span id="odonto-total-badge" style="background: var(--blue-light); color: var(--blue); padding: 4px 10px; border-radius: 99px; font-weight: 700; font-size: 14px;">Total: $0</span>
+                <button class="btn-primary" style="font-size: 11px; padding: 5px 10px; display: inline-flex; align-items: center; gap: 5px;" onclick="imprimirPresupuestoDesdeOdonto()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                  Presupuesto Formal
+                </button>
               </div>
             </div>
             <div class="table-wrapper" style="max-height: 220px; overflow-y: auto;">
@@ -665,27 +699,47 @@
       </section>
 
       
-      <!-- FORMATO DE IMPRESIÓN DE PRESUPUESTO (OCULTO EN PANTALLA) -->
-      <div id="print-presupuesto" style="display:none; font-family: Arial, sans-serif;">
-          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--blue); padding-bottom: 20px; margin-bottom: 30px;">
-              <div style="display: flex; align-items: center; gap: 15px;">
-                  <img src="logo.jpg" alt="Logo" style="width: 100px; height: 100px; object-fit: contain; border-radius: 50%;">
+      <!-- FORMATO DE IMPRESIÓN DE PRESUPUESTO FORMAL (ESTILO DENTALINK) -->
+      <div id="print-presupuesto" style="display:none; font-family: 'Inter', Arial, sans-serif; color: #111827; background: #fff;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--blue); padding-bottom: 20px; margin-bottom: 24px;">
+              <div style="display: flex; align-items: center; gap: 18px;">
+                  <img src="logo.jpg" alt="Logo" style="width: 90px; height: 90px; object-fit: contain; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
                   <div>
-                      <h2 style="color: var(--blue); margin: 0; font-size: 28px;">Presupuesto Dental</h2>
-                      <p style="margin: 5px 0 0 0; color: #4b5563; font-size: 14px;">Clínica Dental Dra. Rosa Avila<br>Av. Manuel Ordoñez 725, El Lechugal<br><strong>WhatsApp/Tel:</strong> 81 1221 9911<br><strong>Correo:</strong> dra.avilaodontologia@gmail.com</p>
+                      <h2 style="color: var(--blue); margin: 0; font-size: 24px; font-weight: 700;">CareDent Nube • Clínica Dental</h2>
+                      <p style="margin: 3px 0 0 0; color: #1f2937; font-size: 13px; font-weight: 600;">Dra. Rosa Irasema Avila Acevedo — Cirujano Dentista</p>
+                      <p style="margin: 2px 0 0 0; color: #4b5563; font-size: 12px;">Cédula Profesional: 15655338 | Odontología Integral</p>
+                      <p style="margin: 2px 0 0 0; color: #6b7280; font-size: 11px;">Av. Manuel Ordoñez 725, El Lechugal • WhatsApp: 81 1221 9911 • dra.avilaodontologia@gmail.com</p>
                   </div>
               </div>
-              <div style="text-align: right; font-size: 14px;">
-                  <p style="margin: 0;"><strong>Fecha:</strong> <span id="print-p-fecha"></span></p>
-                  <p style="margin: 5px 0 0 0;"><strong>Paciente:</strong> <span id="print-p-paciente" style="font-size: 16px;"></span></p>
+              <div style="text-align: right; font-size: 13px;">
+                  <span style="display: inline-block; background: #eff6ff; color: var(--blue); padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 13px; margin-bottom: 6px;" id="print-p-folio">FOLIO: PRES-2026</span>
+                  <p style="margin: 2px 0 0 0;"><strong>Fecha de Emisión:</strong> <span id="print-p-fecha"></span></p>
+                  <p style="margin: 2px 0 0 0; color: #059669; font-size: 11px; font-weight: 600;">Vigencia: 30 días naturales</p>
               </div>
           </div>
 
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+          <!-- DATOS DEL PACIENTE -->
+          <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 18px; margin-bottom: 24px; display: flex; justify-content: space-between; font-size: 13px;">
+              <div>
+                  <p style="margin: 0;"><strong>Paciente:</strong> <span id="print-p-paciente" style="font-size: 15px; font-weight: 700; color: #111827;"></span></p>
+                  <p style="margin: 4px 0 0 0; color: #4b5563;"><strong>Teléfono:</strong> <span id="print-p-telefono">No especificado</span></p>
+              </div>
+              <div style="text-align: right;">
+                  <p style="margin: 0; color: #4b5563;"><strong>Doctor(a) Responsable:</strong> Dra. Rosa Avila</p>
+                  <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 11px;">Plan Clínico Personalizado</p>
+              </div>
+          </div>
+
+          <!-- TABLA DE TRATAMIENTOS -->
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 12px;">
               <thead>
                   <tr style="background-color: #f3f4f6; color: #374151; text-align: left;">
-                      <th style="padding: 12px; border-bottom: 2px solid #d1d5db;">Concepto / Tratamiento</th>
-                      <th style="padding: 12px; border-bottom: 2px solid #d1d5db; text-align: right; width: 150px;">Costo Estimado</th>
+                      <th style="padding: 10px; border-bottom: 2px solid #d1d5db; width: 80px;">Pieza</th>
+                      <th style="padding: 10px; border-bottom: 2px solid #d1d5db; width: 110px;">Superficie</th>
+                      <th style="padding: 10px; border-bottom: 2px solid #d1d5db;">Procedimiento / Prestación Clínica</th>
+                      <th style="padding: 10px; border-bottom: 2px solid #d1d5db; text-align: right; width: 110px;">Costo</th>
+                      <th style="padding: 10px; border-bottom: 2px solid #d1d5db; text-align: right; width: 110px;">Abonado</th>
+                      <th style="padding: 10px; border-bottom: 2px solid #d1d5db; text-align: right; width: 110px;">Saldo</th>
                   </tr>
               </thead>
               <tbody id="print-p-tbody">
@@ -693,16 +747,50 @@
               </tbody>
           </table>
 
-          <div id="print-p-total-container" style="display: flex; justify-content: flex-end; margin-bottom: 50px;">
-              <div style="background: #eff6ff; padding: 15px 30px; border-radius: 8px; border: 1px solid #bfdbfe; text-align: right; min-width: 250px;">
-                  <h3 style="margin: 0 0 5px 0; color: #1e3a8a; font-size: 16px;">TOTAL ESTIMADO</h3>
-                  <h1 id="print-p-total" style="margin: 0; font-size: 32px; color: var(--blue);"></h1>
+          <!-- RESUMEN FINANCIERO -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 35px; gap: 20px;">
+              <div style="max-width: 50%; font-size: 11px; color: #4b5563; background: #fafafa; border: 1px dashed #d1d5db; padding: 12px 16px; border-radius: 8px;">
+                  <strong style="color: #111827; display: block; margin-bottom: 4px; font-size: 12px;">💳 Formas de Pago y Condiciones:</strong>
+                  <ul style="margin: 0; padding-left: 16px; line-height: 1.5;">
+                      <li>Efectivo, Tarjeta de Débito/Crédito y Transferencia SPEI.</li>
+                      <li>Planes de abono por cita o por fase clínica.</li>
+                      <li>Precios sujetos a variación si se detectan condiciones clínicas imprevistas durante el tratamiento.</li>
+                  </ul>
+              </div>
+
+              <div id="print-p-total-container" style="background: #eff6ff; padding: 14px 22px; border-radius: 8px; border: 1px solid #bfdbfe; text-align: right; min-width: 260px;">
+                  <div style="display: flex; justify-content: space-between; font-size: 13px; color: #4b5563; margin-bottom: 4px;">
+                      <span>Total Plan:</span>
+                      <strong id="print-p-subtotal" style="color: #111827;">$0.00</strong>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-size: 13px; color: #059669; margin-bottom: 6px;">
+                      <span>Total Abonado:</span>
+                      <strong id="print-p-abonado">$0.00</strong>
+                  </div>
+                  <div style="border-top: 2px solid #bfdbfe; padding-top: 6px; display: flex; justify-content: space-between; align-items: baseline;">
+                      <span style="font-size: 13px; font-weight: 700; color: #1e3a8a;">SALDO PENDIENTE:</span>
+                      <h2 id="print-p-total" style="margin: 0; font-size: 24px; color: var(--blue); font-weight: 800;">$0.00</h2>
+                  </div>
               </div>
           </div>
 
-          <div style="text-align: center; color: #6b7280; font-size: 12px; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-              <p>Este documento es únicamente una estimación de costos basada en la valoración clínica actual.</p>
-              <p>Los precios y tratamientos pueden estar sujetos a cambios dependiendo de la evolución del paciente durante el procedimiento.</p>
+          <!-- LÍNEAS DE FIRMA LEGAL Y CONSENTIMIENTO -->
+          <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+              <p style="font-size: 10px; color: #6b7280; text-align: justify; margin-bottom: 40px; line-height: 1.4;">
+                  Declaro que he sido informado detalladamente sobre el diagnóstico, plan de tratamiento propuesto, alternativas viables y los costos estipulados en el presente presupuesto. Doy mi conformidad para el inicio del tratamiento bajo las condiciones acordadas.
+              </p>
+              
+              <div style="display: flex; justify-content: space-around; text-align: center; margin-top: 30px;">
+                  <div style="width: 240px; border-top: 1px solid #374151; padding-top: 6px;">
+                      <p style="margin: 0; font-size: 12px; font-weight: 700; color: #111827;">Dra. Rosa Irasema Avila Acevedo</p>
+                      <p style="margin: 2px 0 0 0; font-size: 10px; color: #6b7280;">Cédula Profesional 15655338 • U.A.N.L.</p>
+                      <p style="margin: 0; font-size: 10px; color: #9ca3af;">Odontólogo Tratante</p>
+                  </div>
+                  <div style="width: 240px; border-top: 1px solid #374151; padding-top: 6px;">
+                      <p style="margin: 0; font-size: 12px; font-weight: 700; color: #111827;" id="print-p-firma-paciente">Firma del Paciente o Tutor</p>
+                      <p style="margin: 2px 0 0 0; font-size: 10px; color: #6b7280;">Aceptación y Conformidad</p>
+                  </div>
+              </div>
           </div>
       </div>
 

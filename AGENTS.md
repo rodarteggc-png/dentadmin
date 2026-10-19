@@ -55,7 +55,7 @@ Proveer una solución web en la nube para que clínicas y consultorios puedan ac
 
 ---
 
-## 🚀 6. EXTENSIONES DENTALINK IMPLEMENTADAS (OPCIONES 1, 3 Y 4)
+## 🚀 6. EXTENSIONES DENTALINK IMPLEMENTADAS (FASE 1: 1, 3 Y 4)
 * **Opción 1: Financiero Dental - Abonos Directos por Tratamiento / Pieza (`abonos_tratamientos`):**
   - Cada tratamiento en el plan muestra: Costo Total, Ya Abonado, Saldo Pendiente y Badges de estado.
   - Botón "💵 Abonar" abre modal dedicado para registrar pagos parciales o totales directos a ese procedimiento.
@@ -71,5 +71,30 @@ Proveer una solución web en la nube para que clínicas y consultorios puedan ac
   - Pestañas de filtrado: Todas, En Laboratorio / Proceso, Recibidas y Terminadas/Instaladas.
   - Registro de órdenes protésicas con folio automático (`LAB-XXXXXX`), tipo de trabajo (Zirconia, E.max, Carillas, Guardas, etc.), técnico/laboratorio externo, guía de color/tono (A2, B1, etc.), fecha de envío y entrega estimada.
   - Acciones rápidas de flujo de trabajo: "📦 Recibir" (registra recepción en clínica) y "🦷 Instalar" (asienta nota automática en evolución clínica del expediente del paciente).
+
+---
+
+## 💎 7. EXTENSIONES DENTALINK IMPLEMENTADAS (FASE 2: ODONTOGRAMA INFANTIL, PRESUPUESTO FORMAL Y SALA DE ESPERA)
+* **Odontograma Infantil / Deciduo & Mixto (Opción 1 Avanzada):**
+  - Selector de modo: `[ 🦷 Adulto (32) ]`, `[ 👶 Infantil / Deciduo (20) ]`, `[ 🔄 Mixto (52) ]`.
+  - Cuadrantes infantiles FDI: Superior (55-51, 61-65) e Inferior (85-81, 71-75).
+  - Interactivo al 100%: selección de caras y aranceles funciona exactamente igual en piezas temporales que permanentes.
+* **Presupuesto Formal Clínico Imprimible / PDF (Opción 4 Avanzada):**
+  - Membrete profesional: logotipo clínica, datos de la Dra. Rosa Ávila, cédula profesional, dirección y WhatsApp.
+  - Folio oficial automático (`PRES-XXXXX`), fecha de emisión y vigencia de 30 días naturales.
+  - Desglose por Pieza, Superficie, Prestación Clínica, Arancel Unitario, Abonado y Saldo Pendiente.
+  - Cuadro de condiciones de pago y formas aceptadas (Efectivo, Tarjeta, Transferencia SPEI, Abonos por fase).
+  - Cláusula de validez y aceptación médica.
+  - Doble línea de firma legal: Odontólogo Tratante vs Paciente / Tutor.
+  - Botón directo "📄 Presupuesto Formal" desde el Odontograma y desde la sección de Presupuestos.
+* **Sala de Espera y Monitor de Flujo de Pacientes en Vivo (Opción 5):**
+  - Pestaña conmutable en Citas: `[ 📅 Calendario ]` vs `[ 🛋️ Sala de Espera / Flujo ]`.
+  - Tablero Kanban en tiempo real con 4 etapas para el día de hoy:
+    1. 🚪 **Por Llegar:** Pacientes agendados hoy con botón de 1 clic `🛎️ Check-in (Llegó a Clínica)`.
+    2. 🛋️ **En Sala de Espera:** Pacientes en recepción con cronómetro en vivo (`⏱️ XX min esperando`) y botón `💺 Pasar a Sillón`.
+    3. 🩺 **En Sillón Dental:** Pacientes en consulta con sillón asignado, doctor y tiempo transcurrido, más botón `🏁 Finalizar Atención`.
+    4. ✅ **Atendidos Hoy:** Citas finalizadas hoy con enlace directo para registrar cobro/abono en caja.
+  - Alertas visuales en el calendario: las citas cambian de color e ícono según el estado (`🛋️` Ámbar para Sala de Espera, `💺` Violeta para Sillón, `✅` Verde para Finalizada).
+  - Badge numérico en tiempo real en la barra de pestañas que alerta a recepción y doctores sobre cuántos pacientes están en espera.
 
 

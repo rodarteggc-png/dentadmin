@@ -263,23 +263,69 @@ function prettyDate(d){if(!d)return'-';return new Date(d+'T00:00:00').toLocaleDa
 /* ─── ODONTOGRAMA LOGIC ─── */
 let currentPacienteOdonto = null;
 
+/* ─── ODONTOGRAMA MULTI-DENTICIÓN (OPCIÓN 1 - DENTALINK) ─── */
+let currentOdontoMode = 'adulto'; // 'adulto', 'infantil', 'mixto'
+
+function setOdontoMode(mode, btn) {
+  currentOdontoMode = mode;
+  if (btn) {
+    btn.parentElement.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('filter-tab--active'));
+    btn.classList.add('filter-tab--active');
+  }
+  if (currentPacienteOdonto) {
+    renderOdontograma(currentPacienteOdonto);
+  }
+}
+
 function renderOdontograma(pacienteNombre) {
   const container = document.getElementById('odontograma-container');
+  if (!container) return;
   container.innerHTML = '';
   if (!pacienteNombre) return;
   
-  // Dientes de adulto: Superior (18 a 11, 21 a 28) e Inferior (48 a 41, 31 a 38)
-  const cuadrantes = [
-    [18,17,16,15,14,13,12,11, 21,22,23,24,25,26,27,28],
-    [48,47,46,45,44,43,42,41, 31,32,33,34,35,36,37,38]
-  ];
+  let cuadrantes = [];
+  if (currentOdontoMode === 'adulto') {
+    cuadrantes = [
+      { label: 'Maxilar Superior (Permanente: 18 - 28)', piezas: [18,17,16,15,14,13,12,11, 21,22,23,24,25,26,27,28] },
+      { label: 'Mandíbula Inferior (Permanente: 48 - 38)', piezas: [48,47,46,45,44,43,42,41, 31,32,33,34,35,36,37,38] }
+    ];
+  } else if (currentOdontoMode === 'infantil') {
+    cuadrantes = [
+      { label: 'Maxilar Superior Deciduo / Temporal (55 - 65)', piezas: [55,54,53,52,51, 61,62,63,64,65] },
+      { label: 'Mandíbula Inferior Decidua / Temporal (85 - 75)', piezas: [85,84,83,82,81, 71,72,73,74,75] }
+    ];
+  } else if (currentOdontoMode === 'mixto') {
+    cuadrantes = [
+      { label: 'Maxilar Superior Permanente', piezas: [18,17,16,15,14,13,12,11, 21,22,23,24,25,26,27,28] },
+      { label: 'Maxilar Superior Temporal (Deciduo)', piezas: [55,54,53,52,51, 61,62,63,64,65] },
+      { label: 'Mandíbula Inferior Temporal (Deciduo)', piezas: [85,84,83,82,81, 71,72,73,74,75] },
+      { label: 'Mandíbula Inferior Permanente', piezas: [48,47,46,45,44,43,42,41, 31,32,33,34,35,36,37,38] }
+    ];
+  }
   
   const odontogramasData = DB.get('odontogramas').filter(o => o.nombre_paciente === pacienteNombre);
 
-  cuadrantes.forEach(fila => {
+  cuadrantes.forEach(bloque => {
+    const blockWrapper = document.createElement('div');
+    blockWrapper.style.width = '100%';
+    blockWrapper.style.marginBottom = '12px';
+
+    const labelDiv = document.createElement('div');
+    labelDiv.style.fontSize = '11px';
+    labelDiv.style.fontWeight = '600';
+    labelDiv.style.color = 'var(--gray-500)';
+    labelDiv.style.textAlign = 'center';
+    labelDiv.style.marginBottom = '4px';
+    labelDiv.textContent = bloque.label;
+    blockWrapper.appendChild(labelDiv);
+
     const filaDiv = document.createElement('div');
     filaDiv.className = 'odontograma-fila';
-    fila.forEach(diente => {
+    filaDiv.style.display = 'flex';
+    filaDiv.style.justifyContent = 'center';
+    filaDiv.style.gap = currentOdontoMode === 'infantil' ? '12px' : '6px';
+
+    bloque.piezas.forEach(diente => {
       const dData = odontogramasData.filter(o => o.diente == diente);
       const isAusente = dData.some(o => o.cara === 'C' && o.estado === 'ausente');
       const isCorona = dData.some(o => o.cara === 'C' && o.estado === 'corona');
@@ -310,7 +356,8 @@ function renderOdontograma(pacienteNombre) {
       `;
       filaDiv.innerHTML += dienteHtml;
     });
-    container.appendChild(filaDiv);
+    blockWrapper.appendChild(filaDiv);
+    container.appendChild(blockWrapper);
   });
 }
 
@@ -1397,11 +1444,23 @@ function renderCitas() {
     const evts = data.map(c => {
       const sInfo = sillonesMap[c.id_sillon || 'sillon_1'] || { nombre: 'Sillón 1', color: '#3b82f6' };
       let color = sInfo.color;
-      if (c.estado === 'completada') color = '#059669'; // verde esmeralda
-      if (c.estado === 'cancelada') color = '#ef4444'; // rojo
+      let statusIcon = '';
+      if (c.estado === 'en_espera') {
+        color = '#f59e0b'; // ámbar sala de espera
+        statusIcon = '🛋️ ';
+      } else if (c.estado === 'en_sillon') {
+        color = '#8b5cf6'; // violeta clínico en atención
+        statusIcon = '💺 ';
+      } else if (c.estado === 'completada') {
+        color = '#059669'; // verde esmeralda
+        statusIcon = '✅ ';
+      } else if (c.estado === 'cancelada') {
+        color = '#ef4444'; // rojo
+        statusIcon = '❌ ';
+      }
 
       const sillShort = sInfo.nombre.includes('Sillón 1') ? 'S1' : sInfo.nombre.includes('Sillón 2') ? 'S2' : sInfo.nombre.includes('Sillón 3') ? 'S3' : 'S';
-      let titleStr = `[${sillShort}] ${c.nombre_paciente}`;
+      let titleStr = `${statusIcon}[${sillShort}] ${c.nombre_paciente}`;
       if (c.motivo) titleStr += ' - ' + c.motivo;
       if (c.doctor) titleStr += ` (${c.doctor.split(' ')[0]})`;
 
@@ -1429,6 +1488,229 @@ function renderCitas() {
        window.calendar.render();
        if(window.miniCalendar) window.miniCalendar.render();
     }, 50);
+  }
+
+  // Actualizar contador del badge y vista de sala de espera
+  const enEsperaHoy = DB.get('citas').filter(c => c.fecha === todayStr() && c.estado === 'en_espera');
+  const badgeEl = document.getElementById('badge-sala-espera-count');
+  if (badgeEl) {
+    badgeEl.textContent = enEsperaHoy.length;
+    badgeEl.style.display = enEsperaHoy.length > 0 ? 'inline-block' : 'none';
+  }
+  if (currentCitasView === 'espera') {
+    renderSalaEspera();
+  }
+}
+
+/* ─── SALA DE ESPERA & CHECK-IN (OPCIÓN 5 - DENTALINK) ─── */
+let currentCitasView = 'calendario'; // 'calendario' | 'espera'
+
+function switchCitasView(view, btn) {
+  currentCitasView = view;
+  if (btn) {
+    btn.parentElement.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('filter-tab--active'));
+    btn.classList.add('filter-tab--active');
+  }
+
+  const calContainer = document.getElementById('citas-calendario-container');
+  const esperaContainer = document.getElementById('citas-sala-espera-container');
+
+  if (view === 'calendario') {
+    if (calContainer) calContainer.style.display = 'flex';
+    if (esperaContainer) esperaContainer.style.display = 'none';
+    setTimeout(() => {
+      if (window.calendar) window.calendar.render();
+      if (window.miniCalendar) window.miniCalendar.render();
+    }, 50);
+  } else {
+    if (calContainer) calContainer.style.display = 'none';
+    if (esperaContainer) esperaContainer.style.display = 'flex';
+    renderSalaEspera();
+  }
+}
+
+function renderSalaEspera() {
+  const kanban = document.getElementById('sala-espera-kanban');
+  if (!kanban) return;
+
+  const hoy = todayStr();
+  const fechaLabel = document.getElementById('sala-espera-fecha-label');
+  if (fechaLabel) {
+    const d = new Date();
+    const opciones = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    fechaLabel.textContent = d.toLocaleDateString('es-MX', opciones);
+  }
+
+  // Filtrar citas del día de hoy
+  const citasHoy = DB.get('citas').filter(c => c.fecha === hoy);
+
+  // Clasificar en los 4 estados de flujo
+  const porLlegar = citasHoy.filter(c => (!c.estado || c.estado === 'pendiente' || c.estado === 'confirmada'));
+  const enEspera = citasHoy.filter(c => c.estado === 'en_espera');
+  const enSillon = citasHoy.filter(c => c.estado === 'en_sillon');
+  const atendidos = citasHoy.filter(c => c.estado === 'completada');
+
+  // Actualizar badge en la pestaña
+  const badgeCount = document.getElementById('badge-sala-espera-count');
+  if (badgeCount) {
+    badgeCount.textContent = enEspera.length;
+    badgeCount.style.display = enEspera.length > 0 ? 'inline-block' : 'none';
+  }
+
+  // Helper para calcular minutos transcurridos
+  const now = new Date();
+  const getMinutosTranscurridos = (horaStr) => {
+    if (!horaStr) return 0;
+    const parts = horaStr.split(':');
+    const citaDate = new Date();
+    citaDate.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+    const diffMs = now - citaDate;
+    return Math.max(0, Math.floor(diffMs / 60000));
+  };
+
+  const sillonesMap = {
+    'sillon_1': 'Sillón 1 (Principal)',
+    'sillon_2': 'Sillón 2 (Quirúrgico)',
+    'sillon_3': 'Sillón 3 (Odonto / Orto)'
+  };
+  (DB.get('sillones') || []).forEach(s => { sillonesMap[s.id] = s.nombre; });
+
+  // Renderizar 4 Columnas Kanban
+  kanban.innerHTML = `
+    <!-- COLUMNA 1: POR LLEGAR -->
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #cbd5e1;">
+        <span style="font-weight: 700; font-size: 13px; color: #475569; display: flex; align-items: center; gap: 6px;">🚪 Por Llegar</span>
+        <span class="badge" style="background: #e2e8f0; color: #475569; font-weight: 700;">${porLlegar.length}</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px; flex: 1;">
+        ${porLlegar.length === 0 ? '<div style="text-align: center; color: #94a3b8; font-size: 12px; padding: 25px 0;">No hay más citas por llegar hoy</div>' :
+          porLlegar.map(c => `
+            <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; box-shadow: var(--shadow-sm);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-size: 11px; font-weight: 700; color: var(--blue);">${c.hora || '--:--'}</span>
+                <span style="font-size: 10px; color: #64748b;">${escH(sillonesMap[c.id_sillon || 'sillon_1'] || 'Sillón')}</span>
+              </div>
+              <strong style="font-size: 13px; color: #1e293b; display: block; margin-bottom: 2px;">${escH(c.nombre_paciente)}</strong>
+              <div style="font-size: 11px; color: #64748b; margin-bottom: 10px;">${escH(c.motivo || 'Consulta')} • <span style="color:#0284c7;">${escH(c.doctor || 'Dra. Rosa')}</span></div>
+              <button class="btn-primary" style="width: 100%; font-size: 11px; padding: 6px; justify-content: center;" onclick="hacerCheckInCita('${c.id}')">
+                🛎️ Check-in (Llegó a Clínica)
+              </button>
+            </div>
+          `).join('')}
+      </div>
+    </div>
+
+    <!-- COLUMNA 2: EN SALA DE ESPERA -->
+    <div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; padding: 14px; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #f59e0b;">
+        <span style="font-weight: 700; font-size: 13px; color: #b45309; display: flex; align-items: center; gap: 6px;">🛋️ En Sala de Espera</span>
+        <span class="badge" style="background: #f59e0b; color: #fff; font-weight: 700;">${enEspera.length}</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px; flex: 1;">
+        ${enEspera.length === 0 ? '<div style="text-align: center; color: #d97706; font-size: 12px; padding: 25px 0;">Sala de espera despejada</div>' :
+          enEspera.map(c => {
+            const mins = getMinutosTranscurridos(c.hora_llegada || c.hora);
+            const badgeBg = mins > 25 ? '#fee2e2' : mins > 12 ? '#fef3c7' : '#dcfce7';
+            const badgeColor = mins > 25 ? '#b91c1c' : mins > 12 ? '#b45309' : '#15803d';
+            return `
+              <div style="background: #fff; border: 1px solid #fde68a; border-radius: 8px; padding: 12px; box-shadow: var(--shadow-sm);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span style="font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: ${badgeBg}; color: ${badgeColor};">⏱️ Esperando: ${mins} min</span>
+                  <span style="font-size: 10px; color: #78716c;">Llegó: ${c.hora_llegada || c.hora}</span>
+                </div>
+                <strong style="font-size: 13px; color: #1e293b; display: block; margin-bottom: 2px;">${escH(c.nombre_paciente)}</strong>
+                <div style="font-size: 11px; color: #64748b; margin-bottom: 10px;">${escH(c.motivo || 'Consulta')} • <span style="color:#0284c7;">${escH(c.doctor || 'Dra. Rosa')}</span></div>
+                <button class="btn-primary" style="width: 100%; font-size: 11px; padding: 6px; justify-content: center; background:#f59e0b; border-color:#d97706;" onclick="pasarASillonCita('${c.id}')">
+                  💺 Pasar a Sillón (${escH(sillonesMap[c.id_sillon || 'sillon_1'] ? sillonesMap[c.id_sillon || 'sillon_1'].split(' ')[0] : 'S1')})
+                </button>
+              </div>
+            `;
+          }).join('')}
+      </div>
+    </div>
+
+    <!-- COLUMNA 3: EN SILLÓN / ATENCIÓN -->
+    <div style="background: #f5f3ff; border: 1px solid #ede9fe; border-radius: 12px; padding: 14px; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #8b5cf6;">
+        <span style="font-weight: 700; font-size: 13px; color: #6d28d9; display: flex; align-items: center; gap: 6px;">🩺 En Sillón / Consulta</span>
+        <span class="badge" style="background: #8b5cf6; color: #fff; font-weight: 700;">${enSillon.length}</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px; flex: 1;">
+        ${enSillon.length === 0 ? '<div style="text-align: center; color: #7c3aed; font-size: 12px; padding: 25px 0;">No hay pacientes en sillón</div>' :
+          enSillon.map(c => {
+            const mins = getMinutosTranscurridos(c.hora_atencion || c.hora);
+            return `
+              <div style="background: #fff; border: 1px solid #ddd6fe; border-radius: 8px; padding: 12px; box-shadow: var(--shadow-sm);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span style="font-size: 10px; font-weight: 700; background: #e0e7ff; color: #4338ca; padding: 2px 6px; border-radius: 4px;">${escH(sillonesMap[c.id_sillon || 'sillon_1'] || 'Sillón 1')}</span>
+                  <span style="font-size: 10px; color: #6b7280;">En consulta: ${mins} min</span>
+                </div>
+                <strong style="font-size: 13px; color: #1e293b; display: block; margin-bottom: 2px;">${escH(c.nombre_paciente)}</strong>
+                <div style="font-size: 11px; color: #64748b; margin-bottom: 10px;">${escH(c.motivo || 'Tratamiento')} • <span style="color:#7c3aed; font-weight:600;">${escH(c.doctor || 'Dra. Rosa')}</span></div>
+                <button class="btn-primary" style="width: 100%; font-size: 11px; padding: 6px; justify-content: center; background:#10b981; border-color:#059669;" onclick="finalizarAtencionCita('${c.id}')">
+                  🏁 Finalizar Atención
+                </button>
+              </div>
+            `;
+          }).join('')}
+      </div>
+    </div>
+
+    <!-- COLUMNA 4: ATENDIDOS HOY -->
+    <div style="background: #f0fdf4; border: 1px solid #dcfce7; border-radius: 12px; padding: 14px; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #10b981;">
+        <span style="font-weight: 700; font-size: 13px; color: #047857; display: flex; align-items: center; gap: 6px;">✅ Atendidos Hoy</span>
+        <span class="badge" style="background: #10b981; color: #fff; font-weight: 700;">${atendidos.length}</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px; flex: 1;">
+        ${atendidos.length === 0 ? '<div style="text-align: center; color: #059669; font-size: 12px; padding: 25px 0;">Aún no hay citas finalizadas hoy</div>' :
+          atendidos.map(c => `
+            <div style="background: #fff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px; box-shadow: var(--shadow-sm);">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-size: 10px; color: #166534; font-weight:600;">Finalizó: ${c.hora_fin || c.hora}</span>
+                <span style="font-size: 10px; color: #6b7280;">${escH(c.doctor || 'Dra. Rosa')}</span>
+              </div>
+              <strong style="font-size: 13px; color: #1e293b; display: block; margin-bottom: 2px;">${escH(c.nombre_paciente)}</strong>
+              <div style="font-size: 11px; color: #64748b; margin-bottom: 8px;">${escH(c.motivo || 'Atendido')}</div>
+              <button class="btn-secondary" style="width: 100%; font-size: 11px; padding: 5px; justify-content: center;" onclick="openModal('pago', { nombre_paciente: '${escH(c.nombre_paciente)}', concepto: '${escH(c.motivo || 'Consulta')}' })">
+                💵 Registrar Pago / Abono
+              </button>
+            </div>
+          `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function hacerCheckInCita(id) {
+  const now = new Date();
+  const horaActual = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  DB.update('citas', id, { estado: 'en_espera', hora_llegada: horaActual });
+  showToast('Paciente registrado en Sala de Espera', 'success');
+  renderSalaEspera();
+  renderCitas();
+}
+
+function pasarASillonCita(id) {
+  const now = new Date();
+  const horaActual = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  DB.update('citas', id, { estado: 'en_sillon', hora_atencion: horaActual });
+  showToast('Paciente ingresado al sillón clínico', 'info');
+  renderSalaEspera();
+  renderCitas();
+}
+
+function finalizarAtencionCita(id) {
+  const cita = DB.find('citas', id);
+  const now = new Date();
+  const horaActual = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  DB.update('citas', id, { estado: 'completada', hora_fin: horaActual });
+  showToast('Atención finalizada con éxito', 'success');
+  renderSalaEspera();
+  renderCitas();
+  if (cita && confirm(`¿Deseas registrar un cobro o abono ahora para "${cita.nombre_paciente}"?`)) {
+    openModal('pago', { nombre_paciente: cita.nombre_paciente, concepto: cita.motivo || 'Consulta Dental' });
   }
 }
 
@@ -2134,7 +2416,13 @@ function openModal(type,editData){
         <div class="form-group"><label class="form-label">Hora *</label><input class="form-input" type="time" id="f-hora" value="${editData?.hora||'09:00'}"></div>
       </div>
       <div class="form-group"><label class="form-label">Motivo de Consulta *</label><select class="form-input form-select" id="f-motivo"><option value="">Seleccionar...</option>${motivoOpts()}</select></div>
-      ${isE?`<div class="form-group"><label class="form-label">Estado</label><select class="form-input form-select" id="f-estado">${['pendiente','completada','cancelada'].map(s=>`<option ${editData?.estado===s?'selected':''}>${s}</option>`).join('')}</select></div>`:''}
+      ${isE?`<div class="form-group"><label class="form-label">Estado de la Cita</label><select class="form-input form-select" id="f-estado">
+        <option value="pendiente" ${editData?.estado==='pendiente'?'selected':''}>📅 Agendada / Por Llegar</option>
+        <option value="en_espera" ${editData?.estado==='en_espera'?'selected':''}>🛋️ En Sala de Espera (Llegó)</option>
+        <option value="en_sillon" ${editData?.estado==='en_sillon'?'selected':''}>💺 En Sillón Dental (En Atención)</option>
+        <option value="completada" ${editData?.estado==='completada'?'selected':''}>✅ Finalizada / Atendida</option>
+        <option value="cancelada" ${editData?.estado==='cancelada'?'selected':''}>❌ Cancelada / No Asistió</option>
+      </select></div>`:''}
     `;
   }else if(type==='paciente'){
     title.textContent=isE?'Editar Paciente':'Nuevo Paciente';sub.textContent=isE?'Actualizar':'Registrar';
@@ -2490,53 +2778,106 @@ function calcPTotal() {
     if (fMonto) fMonto.value = total;
 }
 function imprimirPresupuesto(id) {
-    const p = DB.find('presupuestos', id);
-    if (!p) return;
-    
-    const mostrarTotal = confirm("¿Deseas INCLUIR el Total Estimado en el PDF que vas a imprimir?\n\nOk = Sí (Mostrar desglose y total)\nCancelar = No (Solo desglose, sin total final)");
-    
-    const dDate = document.getElementById('print-p-fecha');
-    if (dDate) dDate.textContent = prettyDate(p.fecha);
-    
-    const dPac = document.getElementById('print-p-paciente');
-    if (dPac) dPac.textContent = p.nombre_paciente;
-    
+  let p = DB.find('presupuestos', id);
+  let pacienteNombre = p ? p.nombre_paciente : currentPacienteOdonto;
+  
+  if (!p && !pacienteNombre) {
+    showToast('No se encontró el presupuesto especificado', 'error');
+    return;
+  }
+  
+  const paciente = DB.get('pacientes').find(pac => pac.nombre === pacienteNombre);
+  const detalles = DB.get('tratamientos_detalles').filter(d => d.nombre_paciente === pacienteNombre);
+  
+  const dDate = document.getElementById('print-p-fecha');
+  if (dDate) dDate.textContent = prettyDate(p?.fecha || todayStr());
+  
+  const dFolio = document.getElementById('print-p-folio');
+  if (dFolio) dFolio.textContent = `FOLIO: PRES-${p?.id ? String(p.id).slice(-6).toUpperCase() : Math.floor(Math.random() * 89999 + 10000)}`;
+
+  const dPac = document.getElementById('print-p-paciente');
+  if (dPac) dPac.textContent = pacienteNombre;
+
+  const dTel = document.getElementById('print-p-telefono');
+  if (dTel) dTel.textContent = paciente?.telefono || 'No registrado';
+
+  const dFirma = document.getElementById('print-p-firma-paciente');
+  if (dFirma) dFirma.textContent = pacienteNombre;
+
+  const tbody = document.getElementById('print-p-tbody');
+  let subtotal = 0;
+  let totalAbonado = 0;
+
+  if (detalles.length > 0) {
+    // Desglose detallado por diente/prestación desde el odontograma
+    tbody.innerHTML = detalles.map(d => {
+      const precio = Number(d.precio) || 0;
+      const pagado = Number(d.pagado) || 0;
+      const saldo = Math.max(0, precio - pagado);
+      subtotal += precio;
+      totalAbonado += pagado;
+
+      const piezaLabel = d.diente ? `#${d.diente}` : 'General';
+      const caraLabel = d.cara || 'Integral';
+      return `
+        <tr>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight:700; color:var(--blue);">${escH(piezaLabel)}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #4b5563;">${escH(caraLabel)}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;"><strong>${escH(d.nombre_prestacion)}</strong></td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${fmtMoney(precio)}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; color:#059669;">${fmtMoney(pagado)}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight:700; color:#b91c1c;">${fmtMoney(saldo)}</td>
+        </tr>
+      `;
+    }).join('');
+  } else if (p) {
+    // Si es un presupuesto creado manualmente
     let items = [];
     try {
-        items = JSON.parse(p.tratamientos);
-        if (!Array.isArray(items)) throw new Error('Not array');
+      items = JSON.parse(p.tratamientos);
+      if (!Array.isArray(items)) throw new Error('Not array');
     } catch(e) {
-        items = [{ concepto: p.tratamientos, costo: p.monto }];
+      items = [{ concepto: p.tratamientos, costo: p.monto }];
     }
-    
-    const tbody = document.getElementById('print-p-tbody');
-    if (tbody) {
-        tbody.innerHTML = items.map(i => `
-            <tr>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
-                  <div style="font-weight:bold; color:var(--blue); font-size:12px;">${escH(i.fase || 'Fase 1: Higiene/Prevención')}</div>
-                  ${escH(i.concepto)}
-                </td>
-                <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; color: #4b5563;">${fmtMoney(i.costo)}</td>
-            </tr>
-        `).join('');
-    }
-    
-    const totalContainer = document.getElementById('print-p-total-container');
-    if (totalContainer) {
-        if (mostrarTotal) {
-            totalContainer.style.display = 'flex';
-            document.getElementById('print-p-total').textContent = fmtMoney(p.monto);
-        } else {
-            totalContainer.style.display = 'none';
-        }
-    }
-    
-    document.body.classList.add('printing-presupuesto');
-    window.print();
-    setTimeout(() => {
-        document.body.classList.remove('printing-presupuesto');
-    }, 1000);
+    subtotal = p.monto || 0;
+    tbody.innerHTML = items.map(i => `
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight:700; color:var(--blue);">General</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #4b5563;">Clínica</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;"><strong>${escH(i.concepto)}</strong></td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${fmtMoney(i.costo)}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; color:#059669;">$0.00</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight:700; color:#b91c1c;">${fmtMoney(i.costo)}</td>
+      </tr>
+    `).join('');
+  }
+
+  const saldoPendiente = Math.max(0, subtotal - totalAbonado);
+  const elSub = document.getElementById('print-p-subtotal');
+  if (elSub) elSub.textContent = fmtMoney(subtotal);
+  const elAbo = document.getElementById('print-p-abonado');
+  if (elAbo) elAbo.textContent = fmtMoney(totalAbonado);
+  const elTot = document.getElementById('print-p-total');
+  if (elTot) elTot.textContent = fmtMoney(saldoPendiente);
+
+  document.body.classList.add('printing-presupuesto');
+  window.print();
+  setTimeout(() => {
+    document.body.classList.remove('printing-presupuesto');
+  }, 1000);
+}
+
+function imprimirPresupuestoDesdeOdonto() {
+  if (!currentPacienteOdonto) {
+    showToast('Seleccione primero un paciente en el odontograma', 'warning');
+    return;
+  }
+  const detalles = DB.get('tratamientos_detalles').filter(d => d.nombre_paciente === currentPacienteOdonto);
+  if (detalles.length === 0) {
+    showToast('El paciente no tiene tratamientos agregados en el odontograma aún', 'warning');
+    return;
+  }
+  imprimirPresupuesto(null);
 }
 
 function imprimirTicketPago(id) {
