@@ -95,6 +95,16 @@ Proveer una solución web en la nube para que clínicas y consultorios puedan ac
     3. 🩺 **En Sillón Dental:** Pacientes en consulta con sillón asignado, doctor y tiempo transcurrido, más botón `🏁 Finalizar Atención`.
     4. ✅ **Atendidos Hoy:** Citas finalizadas hoy con enlace directo para registrar cobro/abono en caja.
   - Alertas visuales en el calendario: las citas cambian de color e ícono según el estado (`🛋️` Ámbar para Sala de Espera, `💺` Violeta para Sillón, `✅` Verde para Finalizada).
-  - Badge numérico en tiempo real en la barra de pestañas que alerta a recepción y doctores sobre cuántos pacientes están en espera.
+  - Badge numérico en tiempo real en la barra de pestañas que alerta a recepción y doctores sobre cuántos pacientes están en espera.---
 
-
+## ☁️ 8. ARQUITECTURA DE DESPLIEGUE EN LA NUBE (TURSO CLOUD + VERCEL SERVERLESS)
+* **Base de Datos Cloud:** Turso Database (LibSQL sobre AWS `us-east-1`).
+  - URL: `libsql://caredent-db-rodarteggc-png.aws-us-east-1.turso.io`.
+  - Migración completa de las 20 tablas clínicas y relacionales vía `@libsql/client`.
+  - Usuarios precargados: `admin` (`admin123`) y `dra.rosa` (`doctora123`).
+* **Backend Serverless (Vercel):**
+  - Entrada: `api/index.js` montando la aplicación Express (`server.js`).
+  - Rutas estáticas empaquetadas vía `vercel.json` (`includeFiles: index.html,app.js,style.css`) y `process.cwd()` para evitar errores `ENOENT` en Lambda.
+  - Criptografía: Migrado a `bcryptjs` (JavaScript puro) para eliminar incompatibilidades de compilación binaria C++ (`node-gyp`) en Amazon Linux Lambda.
+  - Filesystem Guard: En serverless, `/uploads` redirige de forma segura a `/tmp/uploads` con bloque `try/catch` para evitar fallos de lectura/escritura `EROFS` en el contenedor de Lambda.
+  - Diagnóstico de Conexión: Endpoint `/api/health` para auditar el estado de conexión con Turso Cloud.
