@@ -137,3 +137,23 @@ Proveer una solución web en la nube para que clínicas y consultorios puedan ac
   - **Carga Inicial Ultraligera:** El endpoint general `GET /api/archivos` excluye la columna `data`, descargando únicamente metadatos (ID, nombre, fecha y tamaño en KB) para no saturar memoria.
   - **Rendimiento de Cuota:** En los 9 GB gratuitos de Turso caben **más de 50,000 fotos clínicas optimizadas**, garantizando cero costos durante el mes de prueba y más allá.
 
+---
+
+## 📄 11. DOCUMENTOS CLÍNICOS OFICIALES (RECETAS, PRESUPUESTOS Y WHATSAPP)
+* **Membrete de Distrito Domo:**
+  - Dirección oficial integrada en todos los documentos impresos y compartidos:
+    `Distrito Domo, Av. Manuel Ordoñez 725, El Lechugal, Santa Catarina, N.L. C.P. 66376`
+  - Teléfono / WhatsApp: `81 1221 9911` | Cédula Profesional: `15655338` (U.A.N.L.).
+* **Recetas Médicas Formales:**
+  - Hoja membretada exacta de 1 página con reglas `@page` y `@media print`.
+  - Folio único (`FOLIO: REC-YYYY-XXXX`) y fecha en español formal.
+  - Alerta Médica integrada: consulta en tiempo real los `antecedentes` del paciente e imprime en rojo alergias y condiciones de riesgo (ej: `⚠️ Alergia: Penicilina`).
+  - Posología estructurada (`Rp.`), pie de página con cédula y línea de firma.
+* **Presupuestos Dentales Formales (Estilo Dentalink):**
+  - Desglose por diente y prestación clínica, costo, abonos parciales y saldo pendiente.
+  - Cuadro de condiciones de pago y financiamiento en Distrito Domo.
+  - Cláusula de consentimiento informado con doble firma (Dra. Rosa Ávila + Paciente o Tutor).
+* **Compartir en 1 Clic por WhatsApp:**
+  - Botones verdes de WhatsApp en las tablas y formularios de Recetas y Presupuestos para enviar el resumen formal directamente al número del paciente sin necesidad de imprimir en papel.
+
+
