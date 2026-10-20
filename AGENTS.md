@@ -156,4 +156,15 @@ Proveer una solución web en la nube para que clínicas y consultorios puedan ac
 * **Compartir en 1 Clic por WhatsApp:**
   - Botones verdes de WhatsApp en las tablas y formularios de Recetas y Presupuestos para enviar el resumen formal directamente al número del paciente sin necesidad de imprimir en papel.
 
+---
+
+## 🎨 12. IDENTIDAD DE MARCA OFICIAL Y FORMATO MEDIA CARTA HORIZONTAL (RECETAS Y PRESUPUESTOS)
+* **Formato Media Carta Horizontal (Receta Médica Tradicional):**
+  - Ajuste de proporciones en `@media print` para ocupar exactamente la **mitad superior de la hoja carta de forma acostada/apaisada** (~125mm de altura y 100% de ancho útil).
+  - Reseteo estructural de márgenes en `.layout` y `.main` para eliminar cualquier desalineación hacia la derecha durante la impresión.
+* **Paleta Oficial de la Dra. Rosa Ávila (`#4A6B5D` - Verde Salvia / Botánico):**
+  - Homogeneización del color de acento en Recetas Médicas (`border-bottom`, símbolo `Rp.` y badges de folio).
+  - Presupuestos, Tickets de Pago y Notas de Remisión con encabezados, desgloses y totales actualizados a `#4A6B5D` y tonos suaves verdes (`#f2f7f4`, `#b8d1c5`).
+
+
 

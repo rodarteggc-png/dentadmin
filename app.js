@@ -2952,7 +2952,7 @@ function imprimirPresupuesto(id) {
       const caraLabel = d.cara || 'Integral';
       return `
         <tr>
-          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight:700; color:var(--blue);">${escH(piezaLabel)}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight:700; color:#4A6B5D;">${escH(piezaLabel)}</td>
           <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #4b5563;">${escH(caraLabel)}</td>
           <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;"><strong>${escH(d.nombre_prestacion)}</strong></td>
           <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${fmtMoney(precio)}</td>
@@ -2973,7 +2973,7 @@ function imprimirPresupuesto(id) {
     subtotal = p.monto || 0;
     tbody.innerHTML = items.map(i => `
       <tr>
-        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight:700; color:var(--blue);">General</td>
+        <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-weight:700; color:#4A6B5D;">General</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; color: #4b5563;">Clínica</td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb;"><strong>${escH(i.concepto)}</strong></td>
         <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: right;">${fmtMoney(i.costo)}</td>

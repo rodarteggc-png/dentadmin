@@ -382,7 +382,16 @@ body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:14px;color:v
         visibility: hidden;
     }
 
-    /* ─── 1. IMPRESIÓN DE RECETA MÉDICA ─── */
+    /* Reset estructural indispensable para que no empuje el contenido a la derecha */
+    .layout, .main {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        display: block !important;
+    }
+
+    /* ─── 1. IMPRESIÓN DE RECETA MÉDICA (MEDIA CARTA HORIZONTAL / A LA MITAD DE LA HOJA ACOSTADA) ─── */
     body.printing-receta #print-area,
     body.printing-receta #print-area * {
         visibility: visible;
@@ -392,8 +401,8 @@ body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:14px;color:v
         position: static !important;
         width: 100% !important;
         max-width: 100% !important;
-        margin: 0 !important;
-        padding: 5px 0 !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
         background: #fff !important;
         page-break-inside: avoid;
         break-inside: avoid;
@@ -458,26 +467,31 @@ body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:14px;color:v
         background: #fff !important;
     }
 
-    /* Estilos de Tarjeta y Tipografía de Receta Médica */
+    /* Estilos de Tarjeta y Tipografía de Receta Médica (Media Carta Horizontal) */
     .receta-card {
-        border: 2px solid #cbd5e1;
-        border-radius: 12px;
-        padding: 20px 24px;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 14px 18px;
         background: #fff;
+        page-break-inside: avoid;
+        break-inside: avoid;
     }
     .receta-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border-bottom: 2.5px solid #2563eb;
-        padding-bottom: 12px;
-        margin-bottom: 14px;
+        border-bottom: 2px solid #4A6B5D;
+        padding-bottom: 8px;
+        margin-bottom: 8px;
     }
     .receta-logo-box {
-        width: 75px;
-        height: 75px;
+        width: 55px;
+        height: 55px;
         flex-shrink: 0;
-        margin-right: 14px;
+        margin-right: 12px;
     }
     .receta-logo-img {
         width: 100%;
@@ -488,75 +502,59 @@ body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:14px;color:v
     .receta-header-info {
         flex-grow: 1;
     }
-    .receta-clinica-nombre {
-        margin: 0;
-        color: #2563eb;
-        font-size: 20px;
-        font-weight: 700;
-        letter-spacing: -0.3px;
-    }
     .receta-doctor-nombre {
-        margin: 2px 0 0 0;
-        font-size: 14px;
-        font-weight: 600;
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
         color: #0f172a;
+        letter-spacing: -0.2px;
     }
     .receta-doctor-especialidad {
-        margin: 1px 0 0 0;
-        font-size: 11.5px;
+        margin: 2px 0 0 0;
+        font-size: 11px;
         color: #475569;
         font-weight: 500;
-    }
-    .receta-doctor-direccion {
-        margin: 2px 0 0 0;
-        font-size: 10px;
-        color: #64748b;
-    }
-    .receta-doctor-contacto {
-        margin: 1px 0 0 0;
-        font-size: 10px;
-        color: #64748b;
     }
     .receta-header-meta {
         text-align: right;
         flex-shrink: 0;
-        font-size: 11.5px;
+        font-size: 11px;
     }
     .receta-folio {
         display: inline-block;
-        background: #eff6ff;
-        color: #1d4ed8;
-        padding: 4px 10px;
-        border-radius: 6px;
+        background: #edf5f1;
+        color: #3b564a;
+        padding: 3px 8px;
+        border-radius: 5px;
         font-weight: 700;
-        font-size: 11.5px;
-        border: 1px solid #bfdbfe;
-        margin-bottom: 4px;
+        font-size: 11px;
+        border: 1px solid #b8d1c5;
+        margin-bottom: 2px;
     }
     .receta-fecha-box {
         color: #334155;
-        font-size: 11px;
+        font-size: 10.5px;
     }
     .receta-alerta {
         background: #fef2f2;
         border: 1.5px solid #fca5a5;
         color: #991b1b;
         border-radius: 6px;
-        padding: 6px 12px;
-        margin-bottom: 12px;
-        font-size: 11px;
+        padding: 4px 10px;
+        margin-bottom: 8px;
+        font-size: 10.5px;
         font-weight: 600;
     }
     .receta-paciente-box {
         display: grid;
         grid-template-columns: 2fr 1fr 1fr;
-        gap: 12px;
+        gap: 10px;
         background: #f8fafc;
         border: 1px solid #e2e8f0;
         border-radius: 6px;
-        padding: 8px 12px;
-        margin-bottom: 14px;
-        font-size: 12px;
+        padding: 6px 12px;
+        margin-bottom: 8px;
+        font-size: 11.5px;
         color: #334155;
     }
     .receta-rp-header {
@@ -564,64 +562,66 @@ body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:14px;color:v
         align-items: baseline;
         gap: 8px;
         border-bottom: 1.5px solid #cbd5e1;
-        padding-bottom: 4px;
-        margin-bottom: 10px;
+        padding-bottom: 3px;
+        margin-bottom: 6px;
     }
     .receta-rp-symbol {
-        font-size: 22px;
+        font-size: 20px;
         font-weight: 800;
         font-family: 'Times New Roman', serif;
-        color: #2563eb;
+        color: #4A6B5D;
+        line-height: 1;
     }
     .receta-rp-title {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 700;
         color: #334155;
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
     .receta-body {
-        min-height: 380px;
-        max-height: 480px;
-        font-size: 13.5px;
-        line-height: 1.7;
+        min-height: 135px;
+        max-height: 165px;
+        font-size: 12.5px;
+        line-height: 1.55;
         color: #0f172a;
         white-space: pre-wrap;
-        padding: 6px 8px;
+        padding: 4px 6px;
+        box-sizing: border-box;
     }
     .receta-footer {
         border-top: 1.5px solid #e2e8f0;
-        padding-top: 12px;
-        margin-top: 14px;
+        padding-top: 8px;
+        margin-top: 6px;
         display: flex;
         justify-content: space-between;
         align-items: flex-end;
     }
     .receta-firma-wrapper {
         text-align: center;
-        width: 240px;
+        width: 210px;
     }
     .firma-linea {
-        width: 200px;
-        border-top: 1.5px solid #334155;
-        margin: 0 auto 5px auto;
+        width: 170px;
+        border-top: 1.2px solid #334155;
+        margin: 0 auto 3px auto;
     }
     .firma-nombre {
         margin: 0;
-        font-size: 11.5px;
+        font-size: 11px;
         font-weight: 700;
         color: #0f172a;
     }
     .firma-cedula {
-        margin: 2px 0 0 0;
-        font-size: 9.5px;
+        margin: 1px 0 0 0;
+        font-size: 9px;
         color: #64748b;
     }
     .receta-footer-note {
         text-align: right;
         font-size: 9.5px;
-        color: #64748b;
-        line-height: 1.4;
+        color: #475569;
+        line-height: 1.35;
     }
 }
 
