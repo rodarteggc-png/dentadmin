@@ -488,10 +488,10 @@ body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:14px;color:v
         margin-bottom: 8px;
     }
     .receta-logo-box {
-        width: 55px;
-        height: 55px;
+        width: 60px;
+        height: 60px;
         flex-shrink: 0;
-        margin-right: 12px;
+        margin-right: 14px;
     }
     .receta-logo-img {
         width: 100%;
@@ -504,36 +504,25 @@ body{height:100%;font-family:'Inter',system-ui,sans-serif;font-size:14px;color:v
     }
     .receta-doctor-nombre {
         margin: 0;
-        font-size: 15px;
+        font-size: 19px;
         font-weight: 700;
         color: #0f172a;
-        letter-spacing: -0.2px;
+        letter-spacing: -0.3px;
     }
     .receta-doctor-especialidad {
-        margin: 2px 0 0 0;
-        font-size: 11px;
+        margin: 3px 0 0 0;
+        font-size: 11.5px;
         color: #475569;
         font-weight: 500;
     }
     .receta-header-meta {
         text-align: right;
         flex-shrink: 0;
-        font-size: 11px;
-    }
-    .receta-folio {
-        display: inline-block;
-        background: #edf5f1;
-        color: #3b564a;
-        padding: 3px 8px;
-        border-radius: 5px;
-        font-weight: 700;
-        font-size: 11px;
-        border: 1px solid #b8d1c5;
-        margin-bottom: 2px;
     }
     .receta-fecha-box {
         color: #334155;
-        font-size: 10.5px;
+        font-size: 12px;
+        font-weight: 500;
     }
     .receta-alerta {
         background: #fef2f2;
