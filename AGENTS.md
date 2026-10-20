@@ -163,8 +163,10 @@ Proveer una solución web en la nube para que clínicas y consultorios puedan ac
   - Ajuste de proporciones en `@media print` para ocupar exactamente la **mitad superior de la hoja carta de forma acostada/apaisada** (~125mm de altura y 100% de ancho útil).
   - Reseteo estructural de márgenes en `.layout` y `.main` para eliminar cualquier desalineación hacia la derecha durante la impresión.
 * **Paleta Oficial de la Dra. Rosa Ávila (`#4A6B5D` - Verde Salvia / Botánico):**
-  - Homogeneización del color de acento en Recetas Médicas (`border-bottom`, símbolo `Rp.` y badges de folio).
+  - Homogeneización del color de acento en Recetas Médicas (`border-bottom`, símbolo `Rp.` y detalles de marca).
   - Presupuestos, Tickets de Pago y Notas de Remisión con encabezados, desgloses y totales actualizados a `#4A6B5D` y tonos suaves verdes (`#f2f7f4`, `#b8d1c5`).
-
-
-
+* **Optimización y Limpieza de Impresión (Recetas y Presupuestos):**
+  - **Nombre Principal:** Se estableció a la **Dra. Rosa Irasema Avila Acevedo** como el encabezado predominante (tipografía destacada en negrita), eliminando los rótulos genéricos de clínica.
+  - **Eliminación de Folios y Leyendas Secundarias:** Remoción de los cuadros de Folio (`FOLIO: REC-...`, `FOLIO: PRES-...`) para un acabado formal, limpio y minimalista.
+  - **Pie de Página Estandarizado:** Retiro de direcciones estorbosas en el encabezado superior; reubicadas limpiamente en el pie junto al teléfono directo sin etiquetas de "Urgencias y Citas" ni "WhatsApp" (`📞 81 1221 9911`).
+  - **Sincronización:** Cambios unificados en raíz y `/public`, commiteados y desplegados en tiempo real a Vercel (`dentadmin.vercel.app`).
