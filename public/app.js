@@ -31,31 +31,38 @@ const DB = {
   },
   
   handleError(res) {
-    if(res.status === 401 || res.status === 403) {
+    // 401 = sesión inválida. 403 = rol sin permiso: no debe cerrar la sesión.
+    if (res.status === 401) {
        logout();
        throw new Error('No autorizado');
+    }
+    if (!res.ok) {
+       const err = new Error(res.status === 403 ? 'Sin permiso' : `HTTP ${res.status}`);
+       err.status = res.status;
+       throw err;
     }
     return res;
   },
 
-  // Inicialización (carga todo del servidor a la caché local)
+  collections: ['pacientes', 'citas', 'pagos', 'historia', 'presupuestos', 'gastos', 'inventario', 'tareas', 'odontogramas', 'archivos', 'recetas', 'usuarios', 'antecedentes', 'periodontogramas', 'ortodoncia', 'prestaciones', 'tratamientos_detalles', 'abonos_tratamientos', 'sillones', 'laboratorios_ordenes'],
+
+  async reload(cols) {
+    await Promise.all(cols.map(async (col) => {
+      try {
+        const res = await fetch(`/api/${col}`, { headers: this.getHeaders() }).then(r => this.handleError(r));
+        this.cache[col] = await res.json();
+      } catch (e) {
+        if (e.status === 403) { this.cache[col] = []; return; }
+        throw e;
+      }
+    }));
+  },
+
+  // Inicialización (carga todo del servidor a la caché local, en paralelo)
   async init() {
     if (!localStorage.getItem('token')) return; // No init si no hay login
     try {
-      const collections = ['pacientes', 'citas', 'pagos', 'historia', 'presupuestos', 'gastos', 'inventario', 'tareas', 'odontogramas', 'archivos', 'recetas', 'usuarios', 'antecedentes', 'periodontogramas', 'ortodoncia', 'prestaciones', 'tratamientos_detalles', 'abonos_tratamientos', 'sillones', 'laboratorios_ordenes'];
-      for (const col of collections) {
-        const res = await fetch(`/api/${col}`, { headers: this.getHeaders() }).then(r => this.handleError(r));
-        this.cache[col] = await res.json();
-      }
-      // Revisar si necesitamos sembrar datos
-      if (this.cache.pacientes.length === 0) {
-        await fetch('/api/seed', { method: 'POST', headers: this.getHeaders() });
-        // Recargar caché después de sembrar
-        for (const col of collections) {
-            const res = await fetch(`/api/${col}`, { headers: this.getHeaders() });
-            this.cache[col] = await res.json();
-        }
-      }
+      await this.reload(this.collections);
     } catch (e) {
       console.error('Error conectando al backend:', e);
       if(e.message !== 'No autorizado') showToast('Error conectando al servidor', 'error');
@@ -81,7 +88,7 @@ const DB = {
     }).catch(err => {
         const i = l.indexOf(item);
         if (i !== -1) l.splice(i, 1);
-        showToast('Error de red al guardar', 'error');
+        showToast(err.status === 403 ? 'Tu rol no tiene permiso para guardar aquí' : 'Error de red al guardar', 'error');
     });
     return item;
   },
@@ -256,7 +263,26 @@ const pad=n=>String(n).padStart(2,'0');
 function fmt(d){return`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r}
 function todayStr(){return fmt(new Date())}
-function escH(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function escH(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+
+// Stock calculado en el servidor (UPDATE stock = stock ± n): dos equipos no se pisan el inventario.
+async function registrarMovimientoInventario(insumo, tipo, cantidad) {
+  try {
+    const res = await fetch('/api/inventario/movimiento', {
+      method: 'POST',
+      headers: DB.getHeaders(),
+      body: JSON.stringify({ insumo, tipo, cantidad, fecha: todayStr() })
+    }).then(r => DB.handleError(r));
+    const row = await res.json();
+    const list = DB.get('inventario');
+    const i = list.findIndex(x => x.id === row.id);
+    if (i === -1) list.push(row); else list[i] = row;
+    DB.cache.inventario = list;
+    if (document.querySelector('.nav-item--active')?.dataset?.section === 'inventario') renderInventario();
+  } catch (e) {
+    showToast(e.status === 403 ? 'Tu rol no tiene permiso sobre inventario' : 'Error: el movimiento de inventario NO se registró', 'error');
+  }
+}
 function fmtMoney(n){return'$ '+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:0})}
 function prettyDate(d){if(!d)return'-';return new Date(d+'T00:00:00').toLocaleDateString('es-MX',{year:'numeric',month:'short',day:'numeric'})}
 
@@ -602,7 +628,7 @@ function abrirModalAbonoTratamiento(id) {
   document.getElementById('modal-abono-tratamiento')?.removeAttribute('hidden');
 }
 
-function guardarAbonoTratamiento(e) {
+async function guardarAbonoTratamiento(e) {
   e.preventDefault();
   const id = document.getElementById('abono-tratamiento-id').value;
   const item = DB.get('tratamientos_detalles').find(t => t.id === id);
@@ -616,41 +642,24 @@ function guardarAbonoTratamiento(e) {
 
   if (monto <= 0) return showToast('El monto debe ser mayor a 0', 'error');
 
-  const itemTotal = Number(item.total || item.precio || 0);
-  const pagadoActual = Number(item.pagado || 0);
-  const nuevoPagado = pagadoActual + monto;
-  const estaLiquidado = nuevoPagado >= itemTotal ? 1 : 0;
+  // Una sola petición transaccional: saldo del tratamiento + abono + pago de caja se guardan juntos o no se guarda nada.
+  let result;
+  try {
+    const res = await fetch(`/api/tratamientos_detalles/${encodeURIComponent(item.id)}/abonos`, {
+      method: 'POST',
+      headers: DB.getHeaders(),
+      body: JSON.stringify({ monto, metodo, doctor, fecha, notas })
+    });
+    if (res.status === 401) return logout();
+    result = await res.json();
+    if (!res.ok) return showToast(result.error || 'No se pudo registrar el abono', 'error');
+  } catch (err) {
+    return showToast('Error de red: el abono NO se registró', 'error');
+  }
 
-  // 1. Actualizar tratamientos_detalles
-  DB.update('tratamientos_detalles', item.id, {
-    pagado: nuevoPagado,
-    liquidado: estaLiquidado
-  });
-
-  // 2. Registrar en abonos_tratamientos (Opción 1 - Dentalink)
-  DB.add('abonos_tratamientos', {
-    id_tratamiento_detalle: item.id,
-    nombre_paciente: item.nombre_paciente,
-    diente: item.diente,
-    cara: item.cara,
-    prestacion_nombre: item.nombre_prestacion,
-    monto: monto,
-    metodo: metodo,
-    doctor: doctor,
-    fecha: fecha,
-    notas: notas,
-    createdAt: new Date().toISOString()
-  });
-
-  // 3. Registrar en pagos generales para caja e ingresos del día
-  DB.add('pagos', {
-    nombre_paciente: item.nombre_paciente,
-    monto: monto,
-    concepto: `Abono Pieza #${item.diente}: ${item.nombre_prestacion}`,
-    metodo: metodo,
-    doctor: doctor,
-    fecha: fecha
-  });
+  Object.assign(item, result.tratamiento);
+  DB.cache.abonos_tratamientos = [...DB.get('abonos_tratamientos'), result.abono];
+  DB.cache.pagos = [...DB.get('pagos'), result.pago];
 
   closeModal('abono-tratamiento');
   showToast(`Abono de $${monto.toLocaleString()} registrado con éxito`, 'success');
@@ -1123,7 +1132,7 @@ function loadGabinetePaciente() {
     // Si no es imagen (ej. PDF), mostramos un icono genérico o el texto
     const isImage = (archivo.mime_type && archivo.mime_type.startsWith('image/')) || 
                     archivo.original_name.match(/\.(jpeg|jpg|gif|png|webp|bmp)$/i);
-    const viewUrl = `/api/archivos/${archivo.id}/ver`;
+    const viewUrl = escH(archivo.url || '');
     const src = isImage ? viewUrl : 'https://upload.wikimedia.org/wikipedia/commons/8/87/PDF_file_icon.svg';
     const sizeText = archivo.size_bytes ? ` <span style="color:var(--text-muted,#64748b);font-size:10px;">(${Math.round(archivo.size_bytes / 1024)} KB)</span>` : '';
     
@@ -1217,7 +1226,8 @@ async function uploadFile(event) {
     if (res.ok) {
       const ahorro = rawFile.size > file.size ? ` (Ahorro: ${Math.round((1 - file.size/rawFile.size)*100)}%)` : '';
       showToast(`Archivo guardado en la nube${ahorro}`);
-      await DB.init(); // Recargar DB para obtener el nuevo registro de la colección archivos
+      // Solo se agrega el nuevo registro: recargar las 20 colecciones multiplicaba lecturas en Turso.
+      DB.cache.archivos = [...DB.get('archivos'), data.archivo];
       renderGabinete();
     } else {
       showToast(data.error || 'Error al subir archivo', 'error');
@@ -2716,9 +2726,7 @@ function submitModal(){
   }else if(modalType==='inventario'){
     if(!req(['f-insumo','f-qty'],['Insumo','Cantidad']))return;
     const insumo=v('f-insumo'),qty=parseInt(v('f-qty')),tipo=v('f-tipo');
-    const existing=DB.get('inventario').find(i=>i.insumo.toLowerCase()===insumo.toLowerCase());
-    if(existing){const newStock=tipo==='ingreso'?existing.stock+qty:Math.max(0,existing.stock-qty);DB.update('inventario',existing.id,{stock:newStock,ultimo_tipo:tipo,ultimo_qty:qty,fecha:todayStr()})}
-    else DB.add('inventario',{insumo,stock:tipo==='ingreso'?qty:0,ultimo_tipo:tipo,ultimo_qty:qty,fecha:todayStr()});
+    registrarMovimientoInventario(insumo,tipo,qty);
     addFeedItem({title:`Inventario: ${insumo}`,sub:`${tipo==='ingreso'?'+':'-'}${qty} unidades`,type:'inventario'});
   }else if(modalType==='tarea'){
     if(!req(['f-desc','f-responsable','f-fecha'],['Descripción','Responsable','Fecha']))return;
@@ -2834,9 +2842,7 @@ function nlpExecute(r){
   else if(r.action_type==='CREAR_PRESUPUESTO'){DB.add('presupuestos',{nombre_paciente:d.nombre_paciente,tratamientos:d.item_o_tratamiento||d.motivo_o_concepto,monto:d.monto,estado:'pendiente',fecha:todayStr()});addFeedItem({title:`Presupuesto: ${d.nombre_paciente}`,sub:fmtMoney(d.monto),type:'presupuesto'})}
   else if(r.action_type==='ACTUALIZAR_INVENTARIO'){
     const tipo=(/sal|egres|us[oó]|gast/.test(d.motivo_o_concepto?.toLowerCase()||''))?'egreso':'ingreso';
-    const existing=DB.get('inventario').find(i=>i.insumo.toLowerCase()===d.item_o_tratamiento?.toLowerCase());
-    if(existing){const ns=tipo==='ingreso'?existing.stock+d.cantidad:Math.max(0,existing.stock-d.cantidad);DB.update('inventario',existing.id,{stock:ns,ultimo_tipo:tipo,ultimo_qty:d.cantidad,fecha:todayStr()})}
-    else DB.add('inventario',{insumo:d.item_o_tratamiento,stock:tipo==='ingreso'?d.cantidad:0,ultimo_tipo:tipo,ultimo_qty:d.cantidad,fecha:todayStr()});
+    registrarMovimientoInventario(d.item_o_tratamiento,tipo,d.cantidad);
     addFeedItem({title:`Inventario: ${d.item_o_tratamiento}`,sub:`${tipo==='ingreso'?'+':'-'}${d.cantidad}`,type:'inventario'})}
   else if(r.action_type==='REGISTRAR_GASTO'){DB.add('gastos',{concepto:d.motivo_o_concepto,monto:d.monto,fecha:todayStr()});addFeedItem({title:`Gasto: ${d.motivo_o_concepto}`,sub:fmtMoney(d.monto),type:'gasto'})}
   else if(r.action_type==='CREAR_TAREA_CRM'){DB.add('tareas',{descripcion:d.motivo_o_concepto,responsable:d.responsable,fecha_limite:d.fecha_hora?.split(' ')[0]||todayStr(),estado:'pendiente'});addFeedItem({title:`Tarea: ${d.motivo_o_concepto?.slice(0,40)}`,sub:`Responsable: ${d.responsable}`,type:'tarea'})}
@@ -3098,8 +3104,7 @@ async function syncGoogleCalendar() {
 
         if (data.success) {
             showToast(`✅ Sincronización exitosa: ${data.importados} citas importadas (${data.totalGoogle} eventos en Google)`, 'success');
-            await loadData('citas');
-            await loadData('pacientes');
+            await DB.reload(['citas', 'pacientes']);
             renderCitas();
             if (typeof renderSalaEspera === 'function') renderSalaEspera();
         } else {

@@ -42,6 +42,10 @@ Proveer una solución web en la nube para que clínicas y consultorios puedan ac
 * **SEGURIDAD PRIMERO:** Nunca almacenar contraseñas en texto plano; siempre pasar por el hash de `bcrypt`.
 * **VERIFICACIÓN DE TOKEN:** Todas las rutas protegidas del API deben validar el middleware de autenticación JWT.
 * **NO MEZCLAR CON `DentaAdmin_Full`:** Este proyecto NO usa Electron; corre como servicio web estándar ejecutable con `npm start` (`node server.js`).
+* **RBAC EN SERVIDOR:** La matriz `PERMISSIONS` de `server.js` es la fuente de verdad; `ROLES_PERMISSIONS` en `public/app.js` solo oculta menús. Mantener ambas alineadas.
+* **CRUD GENÉRICO:** Las columnas se filtran con `PRAGMA table_info` (`pickColumns`); `usuarios` y la escritura de `archivos` solo por rutas dedicadas.
+* **ENV OBLIGATORIAS EN VERCEL:** `SECRET_KEY` (sin ella el servidor no arranca), `BOT_API_KEY` (también en AsistDental, header `x-bot-key`), opcional `ALLOWED_ORIGINS`.
+* **FRONTEND SERVIDO:** solo `/public`. Las copias `app.js`, `index.html`, `style.css` de la raíz ya no se sirven.
 
 ---
 

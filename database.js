@@ -3,6 +3,17 @@ const bcrypt = require('bcryptjs');
 
 let db;
 
+const INDEXES = [
+    'CREATE INDEX IF NOT EXISTS idx_citas_fecha_hora ON citas(fecha, hora)',
+    'CREATE INDEX IF NOT EXISTS idx_citas_google_event ON citas(google_event_id)',
+    'CREATE INDEX IF NOT EXISTS idx_pacientes_nombre_lower ON pacientes(LOWER(nombre))',
+    'CREATE INDEX IF NOT EXISTS idx_usuarios_username_lower ON usuarios(LOWER(username))',
+    'CREATE INDEX IF NOT EXISTS idx_archivos_paciente ON archivos(nombre_paciente)',
+    'CREATE INDEX IF NOT EXISTS idx_archivos_filename ON archivos(filename)',
+    'CREATE INDEX IF NOT EXISTS idx_tratdet_paciente ON tratamientos_detalles(nombre_paciente)',
+    'CREATE INDEX IF NOT EXISTS idx_abonos_tratdet ON abonos_tratamientos(id_tratamiento_detalle)'
+];
+
 if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
     const { createClient } = require('@libsql/client');
     console.log('⚡ Conectando a Turso Cloud Database...');
@@ -11,40 +22,42 @@ if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
         authToken: process.env.TURSO_AUTH_TOKEN
     });
 
+    // Two-arg then(): an exception thrown inside the callback must never re-enter it as a DB error.
+    const deliver = (promise, onOk, callback) => {
+        promise
+            .then(onOk, err => {
+                if (callback) callback(err);
+                else console.error('[db] Error sin callback:', err.message);
+            })
+            .catch(err => console.error('[db] Excepción dentro del callback:', err));
+    };
+
     db = {
         isTurso: true,
         all(sql, params, callback) {
             if (typeof params === 'function') { callback = params; params = []; }
-            turso.execute({ sql, args: params || [] })
-                .then(res => callback(null, res.rows))
-                .catch(err => callback(err));
+            deliver(turso.execute({ sql, args: params || [] }), res => callback(null, res.rows), callback);
         },
         get(sql, params, callback) {
             if (typeof params === 'function') { callback = params; params = []; }
-            turso.execute({ sql, args: params || [] })
-                .then(res => callback(null, res.rows[0] || null))
-                .catch(err => callback(err));
+            deliver(turso.execute({ sql, args: params || [] }), res => callback(null, res.rows[0] || null), callback);
         },
         run(sql, params, callback) {
             if (typeof params === 'function') { callback = params; params = []; }
-            turso.execute({ sql, args: params || [] })
-                .then(res => {
-                    if (callback) {
-                        const ctx = {
-                            changes: res.rowsAffected,
-                            lastID: res.lastInsertRowid
-                        };
-                        callback.call(ctx, null);
-                    }
-                })
-                .catch(err => {
-                    if (callback) callback(err);
-                });
+            deliver(turso.execute({ sql, args: params || [] }), res => {
+                if (callback) callback.call({ changes: res.rowsAffected, lastID: res.lastInsertRowid }, null);
+            }, callback);
+        },
+        async batch(statements) {
+            const results = await turso.batch(statements.map(s => ({ sql: s.sql, args: s.args || [] })), 'write');
+            return results.map(r => ({ changes: r.rowsAffected }));
         },
         serialize(fn) {
             if (fn) fn();
         }
     };
+    Promise.allSettled(INDEXES.map(sql => turso.execute(sql)))
+        .then(results => results.forEach(r => r.status === 'rejected' && console.warn('[db] Índice omitido:', r.reason.message)));
     console.log('✅ Base de datos Turso Cloud lista y enlazada.');
 } else if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === 'production') {
     console.error('⚠️ ALERTA: No se detectó TURSO_DATABASE_URL ni TURSO_AUTH_TOKEN en entorno Serverless/Vercel.');
@@ -53,6 +66,7 @@ if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
         all: (s, p, cb) => (cb || p)(new Error('Base de datos en la nube no configurada en Vercel. Por favor configura TURSO_DATABASE_URL y TURSO_AUTH_TOKEN en Vercel Dashboard.')),
         get: (s, p, cb) => (cb || p)(new Error('Base de datos en la nube no configurada en Vercel. Por favor configura TURSO_DATABASE_URL y TURSO_AUTH_TOKEN en Vercel Dashboard.')),
         run: (s, p, cb) => (cb || p)(new Error('Base de datos en la nube no configurada en Vercel. Por favor configura TURSO_DATABASE_URL y TURSO_AUTH_TOKEN en Vercel Dashboard.')),
+        batch: () => Promise.reject(new Error('Base de datos en la nube no configurada en Vercel. Por favor configura TURSO_DATABASE_URL y TURSO_AUTH_TOKEN en Vercel Dashboard.')),
         serialize: fn => fn && fn()
     };
 } else {
@@ -321,6 +335,7 @@ if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
             db.run(`ALTER TABLE citas ADD COLUMN hora_llegada TEXT`, () => {});
             db.run(`ALTER TABLE citas ADD COLUMN hora_atencion TEXT`, () => {});
             db.run(`ALTER TABLE citas ADD COLUMN hora_fin TEXT`, () => {});
+            db.run(`ALTER TABLE citas ADD COLUMN google_event_id TEXT`, () => {});
 
             // Columnas para almacenamiento permanente de archivos/fotos en Turso Cloud
             db.run(`ALTER TABLE archivos ADD COLUMN data TEXT`, () => {});
@@ -412,10 +427,52 @@ if (process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN) {
                 });
             });
 
+            INDEXES.forEach(sql => db.run(sql, (idxErr) => {
+                if (idxErr) console.warn('[db] Índice omitido:', idxErr.message);
+            }));
+
             console.log('Tablas inicializadas correctamente.');
         });
     }
 });
+
+    const runLocal = (sql, args = []) => new Promise((resolve, reject) => {
+        db.run(sql, args, function (err) {
+            if (err) return reject(err);
+            resolve({ changes: this.changes });
+        });
+    });
+    // sqlite3 shares one connection: serialize transactions to avoid nested BEGIN.
+    let batchQueue = Promise.resolve();
+    db.batch = (statements) => {
+        const job = batchQueue.then(async () => {
+            await runLocal('BEGIN IMMEDIATE');
+            try {
+                const results = [];
+                for (const s of statements) results.push(await runLocal(s.sql, s.args || []));
+                await runLocal('COMMIT');
+                return results;
+            } catch (err) {
+                await runLocal('ROLLBACK').catch(() => {});
+                throw err;
+            }
+        });
+        batchQueue = job.catch(() => {});
+        return job;
+    };
 }
+
+db.allAsync = (sql, params = []) => new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)));
+});
+db.getAsync = (sql, params = []) => new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row || null)));
+});
+db.runAsync = (sql, params = []) => new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) {
+        if (err) return reject(err);
+        resolve({ changes: this ? this.changes : 0, lastID: this ? this.lastID : undefined });
+    });
+});
 
 module.exports = db;
